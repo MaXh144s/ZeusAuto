@@ -57,7 +57,7 @@ internal sealed class WebMacroConfig
 
     /// <summary>Frequência do bip em Hz (200–1000).</summary>
     [JsonPropertyName("bipHz")]
-    public int BipHz { get; set; } = 870;
+    public int BipHz { get; set; } = 200;
 }
 
 internal sealed class WebShortcutConfig

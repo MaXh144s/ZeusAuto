@@ -128,7 +128,7 @@ public sealed class MainForm : Form
         }
 
         // --- Frequência do bip: clamp ao range 200–1000 Hz ---
-        int beepHz = macro.BipHz > 0 ? Math.Clamp(macro.BipHz, 200, 1000) : 870;
+        int beepHz = macro.BipHz > 0 ? Math.Clamp(macro.BipHz, 200, 1000) : 200;
 
         return new MacroConfig
         {

@@ -135,7 +135,7 @@ function openConfigureForKey(key, isNew = false) {
 
   document.getElementById('cfg-key-name').textContent = key;
 
-  const cfg = state.macros[key] || { interval:200, cpsBase:13, humanize:false, cpsMin:10, cpsMax:16, shortcuts:false, cpsPlus:[], cpsMinus:[], bip:false, bipHz:870 };
+  const cfg = state.macros[key] || { interval:200, cpsBase:13, humanize:false, cpsMin:10, cpsMax:16, shortcuts:false, cpsPlus:[], cpsMinus:[], bip:false, bipHz:200 };
 
   // Interval
   document.getElementById('cfg-interval').value = cfg.interval;
@@ -168,8 +168,8 @@ function openConfigureForKey(key, isNew = false) {
   setToggle('bip', cfg.bip);
   document.getElementById('bip-hz-panel').style.display = cfg.bip ? 'block' : 'none';
   const hzEl = document.getElementById('cfg-hz');
-  hzEl.value = cfg.bipHz || 870;
-  document.getElementById('cfg-hz-val').textContent = (cfg.bipHz||870) + 'hz';
+  hzEl.value = cfg.bipHz || 200;
+  document.getElementById('cfg-hz-val').textContent = (cfg.bipHz||200) + 'hz';
   updateSliderPosition('cfg-hz', 'cfg-hz-val');
 
   // Delete btn

@@ -147,7 +147,7 @@ state.macros[key] = {
   cpsPlus:   [],     // teclas do atalho de +1 CPS
   cpsMinus:  [],     // teclas do atalho de -1 CPS
   bip:       false,  // feedback sonoro
-  bipHz:     870     // frequência do bip em Hz
+  bipHz:     200     // frequência do bip em Hz
 }
 ```
 
@@ -271,7 +271,7 @@ Gerencia troca de perfis via arquivo JSON com `FileSystemWatcher` para recarrega
         "cpsPlus": [],
         "cpsMinus": [],
         "bip": false,
-        "bipHz": 870
+        "bipHz": 200
       }
     },
     "atalhos": { ... },
