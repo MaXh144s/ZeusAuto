@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using ZeusAuto.Engine.Core.Interfaces;
 
 namespace ZeusAuto.Engine.Core;
@@ -17,6 +18,8 @@ public sealed class MacroEngine : IDisposable
     private DateTimeOffset? _firstClickReleasedAt;
     private bool _listening;
     private bool _disposed;
+
+    private const int BeepDurationMs = 80;
 
     public MacroEngine(
         IInputListener? inputListener = null,
@@ -128,7 +131,8 @@ public sealed class MacroEngine : IDisposable
     {
         ThrowIfDisposed();
 
-        CancellationTokenSource? cts = null;
+        MacroConfig? configSnapshot = null;
+
         lock (_sync)
         {
             if (_macroTask is { IsCompleted: false })
@@ -143,9 +147,17 @@ public sealed class MacroEngine : IDisposable
             }
 
             _state = MacroState.Running;
-            cts = new CancellationTokenSource();
+            configSnapshot = _config;
+
+            CancellationTokenSource cts = new CancellationTokenSource();
             _macroCancellation = cts;
             _macroTask = RunMacroAsync(cts.Token);
+        }
+
+        // Bip indicativo de início do autoclick — usa a frequência configurada pelo usuário
+        if (configSnapshot.BeepEnabled)
+        {
+            PlayBeep(configSnapshot.BeepHz);
         }
     }
 
@@ -300,6 +312,29 @@ public sealed class MacroEngine : IDisposable
         int offset = randomMax > 0 ? Random.Shared.Next(-randomMax, randomMax + 1) : 0;
         return Math.Max(1, interval + offset);
     }
+
+    /// <summary>
+    /// Reproduz um bip curto na frequência configurada (200–1000 Hz) para indicar
+    /// que o autoclick foi ativado. Disparado em thread de pool para não bloquear o gatilho.
+    /// </summary>
+    private static void PlayBeep(int hz)
+    {
+        uint freq = (uint)Math.Clamp(hz, 200, 1000);
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                Beep(freq, BeepDurationMs);
+            }
+            catch
+            {
+                // Ignora se o hardware não suportar bip
+            }
+        });
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool Beep(uint dwFreq, uint dwDuration);
 
     private void ApplyConfig(MacroConfig config)
     {

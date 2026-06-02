@@ -8,11 +8,13 @@ namespace ZeusAuto.App;
 public sealed class MainForm : Form
 {
     private readonly WebView2 _webView = new();
-    private readonly MacroEngine _engine = new();
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
+
+    // Um engine independente por botão de gatilho configurado
+    private readonly List<MacroEngine> _engines = new();
 
     public MainForm()
     {
@@ -36,8 +38,6 @@ public sealed class MainForm : Form
         _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
         _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
 
-        _engine.StartListening();
-
         string htmlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ZeusAuto.html"));
         if (!File.Exists(htmlPath))
         {
@@ -58,9 +58,7 @@ public sealed class MainForm : Form
                 return;
             }
 
-            MacroConfig config = ToMacroConfig(message.Profile);
-            _engine.LoadConfig(config);
-            _engine.EnableMonitoring();
+            ApplyProfile(message.Profile);
             PostNativeStatus("Engine sincronizada com a interface.");
         }
         catch (Exception ex)
@@ -69,24 +67,46 @@ public sealed class MainForm : Form
         }
     }
 
-    private static MacroConfig ToMacroConfig(WebProfile profile)
+    /// <summary>
+    /// Reconstrói a lista de engines para corresponder a cada macro do perfil.
+    /// Cria um MacroEngine independente por entrada no dicionário de macros.
+    /// </summary>
+    private void ApplyProfile(WebProfile profile)
     {
-        KeyValuePair<string, WebMacroConfig>? selected = SelectMacro(profile);
-        if (selected is null)
+        // Para e descarta todos os engines anteriores
+        DisposeAllEngines();
+
+        if (!profile.Enabled || profile.Macros is null || profile.Macros.Count == 0)
         {
-            return new MacroConfig
-            {
-                Enabled = false,
-                ProfileName = profile.ProfileName ?? "Interface"
-            };
+            return;
         }
 
-        string triggerButton = NormalizeMouseButton(selected.Value.Key);
-        WebMacroConfig macro = selected.Value.Value;
+        // Cria um engine para cada macro configurado no perfil
+        foreach (KeyValuePair<string, WebMacroConfig> entry in profile.Macros)
+        {
+            MacroConfig config = ToMacroConfig(profile, entry.Key, entry.Value);
+            MacroEngine engine = new MacroEngine();
+            engine.LoadConfig(config);
+            engine.StartListening();
+            engine.EnableMonitoring();
+            _engines.Add(engine);
+        }
+    }
+
+    private void DisposeAllEngines()
+    {
+        foreach (MacroEngine engine in _engines)
+        {
+            engine.Dispose();
+        }
+        _engines.Clear();
+    }
+
+    private static MacroConfig ToMacroConfig(WebProfile profile, string buttonKey, WebMacroConfig macro)
+    {
+        string triggerButton = NormalizeMouseButton(buttonKey);
 
         // --- Delay de clique: converte CPS → ms ---
-        // Humanize OFF: cpsBase fixo → 1000 / cpsBase
-        // Humanize ON:  média de (cpsMin + cpsMax) / 2 → 1000 / avg
         int clickIntervalMs;
         if (macro.Humanize)
         {
@@ -99,17 +119,16 @@ public sealed class MainForm : Form
         }
 
         // --- Humanize: offset de variação em ms ---
-        // CPS maior (cpsMax) → menor delay em ms → limite inferior do range
-        // CPS menor (cpsMin) → maior delay em ms → limite superior do range
-        // O CalculateDelay usa: interval + Random(-offset, +offset)
-        // Logo offset = (msAtCpsMin - msAtCpsMax) / 2 para cobrir o range completo
         int randomMaxMs = 0;
         if (macro.Humanize && macro.CpsMin > 0 && macro.CpsMax > 0)
         {
-            int msAtCpsMin = 1000 / macro.CpsMin; // delay maior (CPS mais lento)
-            int msAtCpsMax = 1000 / macro.CpsMax; // delay menor (CPS mais rápido)
+            int msAtCpsMin = 1000 / macro.CpsMin;
+            int msAtCpsMax = 1000 / macro.CpsMax;
             randomMaxMs = Math.Max(0, (msAtCpsMin - msAtCpsMax) / 2);
         }
+
+        // --- Frequência do bip: clamp ao range 200–1000 Hz ---
+        int beepHz = macro.BipHz > 0 ? Math.Clamp(macro.BipHz, 200, 1000) : 870;
 
         return new MacroConfig
         {
@@ -118,28 +137,14 @@ public sealed class MainForm : Form
             TriggerButton = triggerButton,
             ClickButton = triggerButton,
             ActivationMode = "DoubleClickHold",
-            DoubleClickWindowMs = macro.Interval > 0 ? macro.Interval : 200, // janela do double-click
-            IntervalMs = Math.Max(1, clickIntervalMs),                         // delay entre cliques (ms)
+            DoubleClickWindowMs = macro.Interval > 0 ? macro.Interval : 200,
+            IntervalMs = Math.Max(1, clickIntervalMs),
             RandomizationEnabled = macro.Humanize,
-            RandomMin = 0,                                                     // offset mínimo (sempre 0)
-            RandomMax = randomMaxMs                                             // offset máximo em ms
+            RandomMin = 0,
+            RandomMax = randomMaxMs,
+            BeepEnabled = macro.Bip,
+            BeepHz = beepHz
         };
-    }
-
-    private static KeyValuePair<string, WebMacroConfig>? SelectMacro(WebProfile profile)
-    {
-        if (profile.Macros is null || profile.Macros.Count == 0)
-        {
-            return null;
-        }
-
-        if (!string.IsNullOrWhiteSpace(profile.ActiveMacro) &&
-            profile.Macros.TryGetValue(profile.ActiveMacro, out WebMacroConfig? active))
-        {
-            return new KeyValuePair<string, WebMacroConfig>(profile.ActiveMacro, active);
-        }
-
-        return profile.Macros.First();
     }
 
     private static string NormalizeMouseButton(string buttonName)
@@ -173,7 +178,7 @@ public sealed class MainForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
-        _engine.Dispose();
+        DisposeAllEngines();
         _webView.Dispose();
     }
 }

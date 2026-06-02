@@ -476,9 +476,23 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 ```
 
+### Bug 6 — Cliques sintéticos do `SendInput` interrompem a engine imediatamente
+
+**Problema:** O `MouseHookCallback` no `InputListener` não filtrava eventos sintéticos gerados pelo próprio `MouseSimulator` via `SendInput`. Cada clique emitido pelo macro durante o estado `Running` disparava um `WM_LBUTTONUP` de volta no hook, que chegava em `HandleInputUp` e chamava `StopMacro()` — parando o macro logo após o primeiro clique sintético. O resultado era que o auto-clicker nunca iniciava de fato.
+
+**Correção em `InputListener.cs`:**
+```csharp
+// Ignora eventos sintéticos gerados pelo próprio SendInput (LLMHF_INJECTED = 0x1)
+bool isInjected = (data.flags & 0x1) != 0;
+if (!isInjected)
+{
+    // processa o evento normalmente
+}
+```
+
 ---
 
-## Requisitos
+
 
 - **Windows** 10 ou superior (necessário para `SetWindowsHookEx` e `SendInput`)
 - **.NET 8** (Windows target: `net8.0-windows`)

@@ -179,17 +179,25 @@ public sealed class InputListener : IInputListener
     {
         if (nCode >= 0)
         {
-            string? inputName = MouseMessageToInputName(wParam.ToInt32(), lParam);
-            if (!string.IsNullOrWhiteSpace(inputName))
+            MSLLHOOKSTRUCT data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+
+            // Ignora eventos sintéticos gerados pelo próprio SendInput (LLMHF_INJECTED = 0x1)
+            // Sem isso, os cliques do macro disparam HandleInputUp e param a engine imediatamente
+            bool isInjected = (data.flags & 0x1) != 0;
+            if (!isInjected)
             {
-                int message = wParam.ToInt32();
-                if (message is WmLButtonDown or WmRButtonDown or WmMButtonDown or WmXButtonDown)
+                string? inputName = MouseMessageToInputName(wParam.ToInt32(), lParam);
+                if (!string.IsNullOrWhiteSpace(inputName))
                 {
-                    InputDown?.Invoke(this, new InputEventArgs(inputName));
-                }
-                else
-                {
-                    InputUp?.Invoke(this, new InputEventArgs(inputName));
+                    int message = wParam.ToInt32();
+                    if (message is WmLButtonDown or WmRButtonDown or WmMButtonDown or WmXButtonDown)
+                    {
+                        InputDown?.Invoke(this, new InputEventArgs(inputName));
+                    }
+                    else
+                    {
+                        InputUp?.Invoke(this, new InputEventArgs(inputName));
+                    }
                 }
             }
         }

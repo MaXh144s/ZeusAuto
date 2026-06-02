@@ -50,6 +50,14 @@ internal sealed class WebMacroConfig
     /// <summary>CPS máximo do range humanize (ex: 16).</summary>
     [JsonPropertyName("cpsMax")]
     public int CpsMax { get; set; }
+
+    /// <summary>Emite bip sonoro ao iniciar o macro.</summary>
+    [JsonPropertyName("bip")]
+    public bool Bip { get; set; }
+
+    /// <summary>Frequência do bip em Hz (200–1000).</summary>
+    [JsonPropertyName("bipHz")]
+    public int BipHz { get; set; } = 870;
 }
 
 internal sealed class WebShortcutConfig

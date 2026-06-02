@@ -29,6 +29,12 @@ public sealed class MacroConfig
 
     public int? DoubleClickWindowMs { get; set; }
 
+    /// <summary>Emite bip sonoro ao iniciar o macro.</summary>
+    public bool BeepEnabled { get; set; }
+
+    /// <summary>Frequência do bip em Hz (200–1000). Padrão 870.</summary>
+    public int BeepHz { get; set; } = 200;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtraOptions { get; set; }
 }
