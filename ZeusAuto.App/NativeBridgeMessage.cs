@@ -31,15 +31,23 @@ internal sealed class WebProfile
 
 internal sealed class WebMacroConfig
 {
+    /// <summary>Janela de tempo do double-click em ms (ex: 200).</summary>
     [JsonPropertyName("interval")]
     public int Interval { get; set; }
 
+    /// <summary>Velocidade fixa em CPS quando Humanize está desligado (ex: 13).</summary>
+    [JsonPropertyName("cpsBase")]
+    public int CpsBase { get; set; }
+
+    /// <summary>Liga/desliga o modo de variação de velocidade.</summary>
     [JsonPropertyName("humanize")]
     public bool Humanize { get; set; }
 
+    /// <summary>CPS mínimo do range humanize (ex: 10).</summary>
     [JsonPropertyName("cpsMin")]
     public int CpsMin { get; set; }
 
+    /// <summary>CPS máximo do range humanize (ex: 16).</summary>
     [JsonPropertyName("cpsMax")]
     public int CpsMax { get; set; }
 }

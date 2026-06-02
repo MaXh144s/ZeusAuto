@@ -83,6 +83,34 @@ public sealed class MainForm : Form
 
         string triggerButton = NormalizeMouseButton(selected.Value.Key);
         WebMacroConfig macro = selected.Value.Value;
+
+        // --- Delay de clique: converte CPS → ms ---
+        // Humanize OFF: cpsBase fixo → 1000 / cpsBase
+        // Humanize ON:  média de (cpsMin + cpsMax) / 2 → 1000 / avg
+        int clickIntervalMs;
+        if (macro.Humanize)
+        {
+            double avgCps = (macro.CpsMin + macro.CpsMax) / 2.0;
+            clickIntervalMs = avgCps > 0 ? (int)(1000.0 / avgCps) : 100;
+        }
+        else
+        {
+            clickIntervalMs = macro.CpsBase > 0 ? 1000 / macro.CpsBase : 100;
+        }
+
+        // --- Humanize: offset de variação em ms ---
+        // CPS maior (cpsMax) → menor delay em ms → limite inferior do range
+        // CPS menor (cpsMin) → maior delay em ms → limite superior do range
+        // O CalculateDelay usa: interval + Random(-offset, +offset)
+        // Logo offset = (msAtCpsMin - msAtCpsMax) / 2 para cobrir o range completo
+        int randomMaxMs = 0;
+        if (macro.Humanize && macro.CpsMin > 0 && macro.CpsMax > 0)
+        {
+            int msAtCpsMin = 1000 / macro.CpsMin; // delay maior (CPS mais lento)
+            int msAtCpsMax = 1000 / macro.CpsMax; // delay menor (CPS mais rápido)
+            randomMaxMs = Math.Max(0, (msAtCpsMin - msAtCpsMax) / 2);
+        }
+
         return new MacroConfig
         {
             Enabled = profile.Enabled,
@@ -90,10 +118,11 @@ public sealed class MainForm : Form
             TriggerButton = triggerButton,
             ClickButton = triggerButton,
             ActivationMode = "DoubleClickHold",
-            IntervalMs = Math.Max(1, macro.Interval),
+            DoubleClickWindowMs = macro.Interval > 0 ? macro.Interval : 200, // janela do double-click
+            IntervalMs = Math.Max(1, clickIntervalMs),                         // delay entre cliques (ms)
             RandomizationEnabled = macro.Humanize,
-            RandomMin = macro.Humanize ? Math.Max(0, macro.CpsMin) : 0,
-            RandomMax = macro.Humanize ? Math.Max(0, macro.CpsMax) : 0
+            RandomMin = 0,                                                     // offset mínimo (sempre 0)
+            RandomMax = randomMaxMs                                             // offset máximo em ms
         };
     }
 
