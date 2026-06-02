@@ -76,7 +76,7 @@ public sealed class MouseSimulator : IMouseSimulator
 {
     SendMouse(downFlag, mouseData);
 
-    Thread.Sleep(10);
+    Thread.Sleep(2);
 
     SendMouse(upFlag, mouseData);
 }
