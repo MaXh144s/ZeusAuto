@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZeusAuto — Configurador</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">Zeus<span>Auto</span></div>
+    <div class="logo-sub">CONFIGURADOR</div>
+  </div>
+  <nav class="nav-items">
+    <div class="nav-item active" data-page="geral" onclick="switchPage('geral',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+      Geral
+    </div>
+    <div class="nav-item" data-page="macro" onclick="switchPage('macro',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+      Macro
+    </div>
+    <div class="nav-item" data-page="perfis" onclick="switchPage('perfis',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Perfis
+    </div>
+    <div class="nav-item" data-page="atalhos" onclick="switchPage('atalhos',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></svg>
+      Atalhos
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="settings-btn" data-page="settings" onclick="switchPage('settings',this)" id="settings-nav">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Configurações
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+
+  <!-- ===== GERAL ===== -->
+  <div class="content-area page active" id="page-geral">
+    <div class="page-header"><div class="page-title">Geral</div><div class="page-subtitle">VISÃO DO DISPOSITIVO</div></div>
+    <div class="geral-layout">
+      <img class="geral-mouse" src="img/ZeusAuto.png" alt="Mouse">
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);letter-spacing:1px">CLIQUE NAS TECLAS ABAIXO PARA CONFIGURAR</div>
+      <div class="geral-grid" id="geral-grid"></div>
+    </div>
+  </div>
+
+  <!-- ===== MACRO ===== -->
+  <div class="content-area page" id="page-macro">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="page-title">Macro</div><div class="page-subtitle">CONFIGURAR TECLAS DO MOUSE</div></div>
+      <div id="macro-breadcrumb" style="display:none;font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);cursor:pointer" onclick="closeConfigurePanel()">← voltar à lista</div>
+    </div>
+
+    <div id="macro-list-view"><div id="macro-keys-list"></div>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px" id="add-key-btn" onclick="openKeySelector()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar configuração de tecla
+      </button>
+    </div>
+
+    <!-- KEY SELECTOR -->
+    <div id="key-selector-panel" style="display:none">
+      <div class="configure-panel">
+        <div class="configure-panel-title">Configurar nova tecla</div>
+        <div class="form-group">
+          <label class="form-label">Selecione a tecla</label>
+          <select class="form-select" id="new-key-select" onchange="onNewKeySelected()">
+            <option value="">— selecione a tecla —</option>
+          </select>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="confirmAddKey()" id="btn-confirm-add" disabled>Continuar</button>
+          <button class="btn btn-secondary" onclick="cancelKeySelector()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIGURE VIEW -->
+    <div id="macro-configure-view" style="display:none">
+      <div class="configure-panel">
+        <div class="configure-panel-title">Configurando tecla <span class="selected-key-badge" id="cfg-key-name">—</span></div>
+
+        <!-- Intervalo -->
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:6px">
+            Intervalo de ativação
+            <span class="info-icon" title="O auto click ativa somente se o usuário der 2 cliques com intervalo ≤ ao valor definido">i</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="num-input-wrap">
+              <input type="number" class="num-input" id="cfg-interval-num" min="50" max="1000" value="200" oninput="syncIntervalNum()" style="width:80px">
+              <div class="num-input-unit">ms</div>
+            </div>
+            <div style="flex:1">
+              <div class="slider-wrap">
+                <span class="slider-value" id="cfg-interval-val">200ms</span>
+                <input type="range" id="cfg-interval" min="50" max="1000" value="200" oninput="syncIntervalSlider()">
+                <div class="slider-range"><span>50ms</span><span>1000ms</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="num-input-hint">2 cliques com intervalo ≤ ao valor definido ativa o auto click</div>
+        </div>
+
+        <!-- CPS Base da tecla -->
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:6px">
+            CPS Base
+            <span class="info-icon" title="Velocidade fixa de cliques por segundo para esta tecla (quando humanização está desativada)">i</span>
+          </label>
+          <div class="num-input-wrap">
+            <input type="number" class="num-input" id="cfg-cps-base" min="1" max="40" value="13" oninput="validateCpsBaseField(this)" style="width:80px">
+            <div class="num-input-unit">cps</div>
+          </div>
+          <div class="num-input-hint">Velocidade fixa usada quando humanização está desativada</div>
+        </div>
+
+        <!-- Humanização -->
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <div class="toggle-row" id="toggle-humanize" onclick="toggleOption('humanize')">
+            <div class="toggle-switch" id="switch-humanize"></div>
+            <span class="toggle-label">Humanização <span style="font-size:11px;color:var(--text-muted)">(variação de CPS)</span></span>
+          </div>
+          <div id="humanize-panel" style="display:none">
+            <div class="humanize-panel">
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;font-family:'DM Mono',monospace;letter-spacing:.5px">RANGE DE VARIAÇÃO</div>
+              <div class="cps-range-row">
+                <div>
+                  <div class="form-label" style="margin-bottom:5px">CPS Mínimo</div>
+                  <div class="num-input-wrap">
+                    <input type="number" class="num-input" id="cfg-cps-min" min="1" max="40" value="10" oninput="validateCpsRange()" style="width:70px">
+                    <div class="num-input-unit">cps</div>
+                  </div>
+                </div>
+                <div>
+                  <div class="form-label" style="margin-bottom:5px">CPS Máximo</div>
+                  <div class="num-input-wrap">
+                    <input type="number" class="num-input" id="cfg-cps-max" min="1" max="40" value="16" oninput="validateCpsRange()" style="width:70px">
+                    <div class="num-input-unit">cps</div>
+                  </div>
+                </div>
+              </div>
+              <div id="cps-range-err" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--danger);margin-top:6px;display:none"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Atalho increment/decrement -->
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <div class="toggle-row" id="toggle-shortcuts" onclick="toggleOption('shortcuts')">
+            <div class="toggle-switch" id="switch-shortcuts"></div>
+            <span class="toggle-label">Atalho de incremento e decremento</span>
+          </div>
+          <div id="shortcuts-panel" style="display:none">
+            <div class="humanize-panel" style="margin-top:0">
+              <div class="shortcut-pair">
+                <div>
+                  <div class="shortcut-box-label">CPS+</div>
+                  <div class="shortcut-display" id="sd-cps-plus" onclick="startRecordMacroShortcut('cps-plus')">
+                    <span class="shortcut-placeholder" id="sp-cps-plus">clique para gravar</span>
+                  </div>
+                  <div class="shortcut-hint" id="sh-cps-plus">teclas acumulam até salvar</div>
+                </div>
+                <div>
+                  <div class="shortcut-box-label">CPS-</div>
+                  <div class="shortcut-display" id="sd-cps-minus" onclick="startRecordMacroShortcut('cps-minus')">
+                    <span class="shortcut-placeholder" id="sp-cps-minus">clique para gravar</span>
+                  </div>
+                  <div class="shortcut-hint" id="sh-cps-minus">teclas acumulam até salvar</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bip -->
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <div class="toggle-row" id="toggle-bip" onclick="toggleOption('bip')">
+            <div class="toggle-switch" id="switch-bip"></div>
+            <span class="toggle-label">Bip sonoro quando ativo</span>
+          </div>
+          <div id="bip-hz-panel" style="display:none;margin-top:10px">
+            <label class="form-label">Frequência do bip</label>
+            <div class="slider-wrap">
+              <span class="slider-value" id="cfg-hz-val">870hz</span>
+              <input type="range" id="cfg-hz" min="200" max="1000" value="870" oninput="updateSliderVal('cfg-hz','cfg-hz-val','hz')">
+              <div class="slider-range"><span>200hz</span><span>1000hz</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveMacroKey()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar Configuração
+        </button>
+        <button class="btn btn-secondary" onclick="closeConfigurePanel()">Cancelar</button>
+        <button class="btn btn-danger" style="margin-left:auto" id="delete-key-btn" onclick="confirmDeleteKey()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Excluir macro
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PERFIS ===== -->
+  <div class="content-area page" id="page-perfis">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="page-title">Perfis</div><div class="page-subtitle">CONFIGURAÇÕES SALVAS</div></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost btn-sm" onclick="importProfile()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Importar
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="exportProfile()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Exportar
+        </button>
+      </div>
+    </div>
+    <div id="profiles-list" class="profiles-grid"></div>
+    <div id="profiles-empty" style="text-align:center;padding:60px 20px;color:var(--text-muted);display:none">
+      <div style="font-size:38px;margin-bottom:14px;opacity:.25">⊕</div>
+      <p style="font-size:13px">Nenhum perfil salvo ainda.<br>Configure uma tecla e salve.</p>
+    </div>
+  </div>
+
+  <!-- ===== ATALHOS ===== -->
+  <div class="content-area page" id="page-atalhos">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="page-title">Atalhos</div><div class="page-subtitle">ATALHOS GLOBAIS</div></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost btn-sm" onclick="importAtalho()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Importar
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="exportAtalho()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Exportar
+        </button>
+      </div>
+    </div>
+    <div class="card"><div id="atalhos-list"></div></div>
+  </div>
+
+  <!-- ===== SETTINGS ===== -->
+  <div class="content-area page" id="page-settings">
+    <div class="page-header"><div class="page-title">Configurações</div><div class="page-subtitle">GERAIS DO SISTEMA</div></div>
+    <div class="card">
+      <div class="settings-section">
+        <div class="settings-section-title">Janela de CPS</div>
+        <div class="toggle-row" onclick="toggleSetting('cps-overlay')" id="set-cps-overlay">
+          <div class="toggle-switch on" id="sw-cps-overlay"></div>
+          <span class="toggle-label">Janela overlay de CPS</span>
+          <span class="info-icon" title="Exibe overlay com o CPS atual">i</span>
+        </div>
+        <div class="toggle-row" onclick="toggleSetting('show-cps-change')" id="set-show-cps-change">
+          <div class="toggle-switch on" id="sw-show-cps-change"></div>
+          <span class="toggle-label">Exibir quando CPS +/-</span>
+          <span class="info-icon" title="Mostra ao alterar CPS com atalhos">i</span>
+        </div>
+        <div class="toggle-row" onclick="toggleSetting('always-visible')" id="set-always-visible">
+          <div class="toggle-switch on" id="sw-always-visible"></div>
+          <span class="toggle-label">Sempre visível</span>
+          <span class="info-icon" title="Mantém overlay sempre no topo">i</span>
+        </div>
+        <div class="toggle-row" onclick="toggleSetting('animate')" id="set-animate">
+          <div class="toggle-switch on" id="sw-animate"></div>
+          <span class="toggle-label">Animar transições</span>
+          <span class="info-icon" title="Ativa animações na transição de CPS">i</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="settings-section">
+        <div class="settings-section-title">Tema</div>
+        <div class="theme-switcher">
+          <div class="theme-option dark selected" onclick="showToast('Tema escuro ativo.','info')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Escuro
+          </div>
+          <div class="theme-option dark" style="opacity:.4;cursor:not-allowed" title="Em breve">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg> Claro
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="settings-section">
+        <div class="settings-section-title">Consumo de RAM</div>
+        <div class="ram-bar-labels"><span id="ram-current">78mb — Atualmente</span><span>15.9Gbs</span></div>
+        <div class="ram-bar-track"><div class="ram-bar-fill" id="ram-fill" style="width:.49%"></div></div>
+      </div>
+    </div>
+    <div class="footer-links">
+      <a href="#" class="footer-link">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+        GitHub
+      </a>
+      <a href="mailto:matheusgerlachm@gmail.com" class="footer-link">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        matheusgerlachm@gmail.com
+      </a>
+    </div>
+    <div class="version-tag">Versão 1.0.0</div>
+  </div>
+
+  <!-- MOUSE PANEL (visível em macro/perfis/atalhos) -->
+  <div class="mouse-panel" id="mouse-panel">
+    <div class="mouse-img-wrap">
+      <img src="img/ZeusAuto.png" alt="Mouse" id="mouse-img">
+    </div>
+    <div class="mouse-legend" id="mouse-legend"></div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- DELETE MODAL -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <div class="modal-title">Excluir macro?</div>
+    <div class="modal-body">Isso irá remover a configuração da tecla <strong id="delete-key-label">—</strong>. Esta ação não pode ser desfeita.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancelar</button>
+      <button class="btn btn-danger" onclick="executeDeleteKey()">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<input type="file" id="import-profile-input" accept=".json" style="display:none" onchange="handleImportProfile(event)">
+<input type="file" id="import-atalho-input" accept=".json" style="display:none" onchange="handleImportAtalho(event)">
+
+<script src="js/core/state.js"></script>
+<script src="js/core/ui.js"></script>
+<script src="js/core/navigation.js"></script>
+<script src="js/pages/macros.js"></script>
+<script src="js/pages/atalhos.js"></script>
+<script src="js/pages/settings.js"></script>
+<script src="js/pages/profiles.js"></script>
+<script src="js/features/import-export.js"></script>
+<script src="js/features/cursor-glow.js"></script>
+<script src="js/app.js"></script>
+<script src="js/features/native-bridge.js"></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+/* CPS BASE POR TECLA */
+.cps-base-bar{display:none}
+/* NO-ANIMATE MODE */
+body.no-animate *,
+body.no-animate *::before,
+body.no-animate *::after {
+  transition: none !important;
+  animation: none !important;
+}
+/* Preserva efeitos de iluminação (box-shadow e filter não são animados, ficam estáticos) */
+body.no-animate .toggle-switch { transition: background 0s !important; }
+body.no-animate .toggle-switch::after { transition: none !important; }
+
+/* CURSOR GLOW */
+.cursor-glow{
+  position:fixed;
+  left:0;
+  top:0;
+  width:140px;
+  height:140px;
+  border-radius:50%;
+  pointer-events:none;
+  z-index:998;
+  opacity:.42;
+  background:radial-gradient(circle,rgba(79,156,249,.22) 0%,rgba(79,156,249,.12) 34%,transparent 70%);
+  filter:blur(14px);
+  transform:translate3d(-999px,-999px,0);
+  translate:-50% -50%;
+  transition:opacity .18s ease;
+  will-change:transform,opacity;
+}
+.cursor-glow.is-hidden{opacity:0}
+
+body.no-animate .cursor-glow{transition:none!important}

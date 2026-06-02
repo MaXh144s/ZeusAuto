@@ -1,0 +1,11 @@
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\bin\Debug\net8.0-windows\ZeusAuto.Engine.deps.json
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\bin\Debug\net8.0-windows\ZeusAuto.Engine.dll
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\bin\Debug\net8.0-windows\ZeusAuto.Engine.pdb
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\ZeusAuto.Engine.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\ZeusAuto.Engine.AssemblyInfoInputs.cache
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\ZeusAuto.Engine.AssemblyInfo.cs
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\ZeusAuto.Engine.csproj.CoreCompileInputs.cache
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\ZeusAuto.Engine.dll
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\refint\ZeusAuto.Engine.dll
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\ZeusAuto.Engine.pdb
+C:\Users\matem\Downloads\ZeusAuto (2)\ZeusAuto\ZeusAuto.Engine\obj\Debug\net8.0-windows\ref\ZeusAuto.Engine.dll
