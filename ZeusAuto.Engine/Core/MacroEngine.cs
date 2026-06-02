@@ -202,6 +202,8 @@ public sealed class MacroEngine : IDisposable
                 }
                 else
                 {
+                    // Fora da janela: trata este clique como o primeiro de um novo ciclo
+                    _state = MacroState.WaitingSecondClick;
                     _firstClickReleasedAt = null;
                 }
             }
@@ -294,10 +296,9 @@ public sealed class MacroEngine : IDisposable
             return interval;
         }
 
-        int min = Math.Min(config.RandomMin, config.RandomMax);
-        int max = Math.Max(config.RandomMin, config.RandomMax);
-        int randomOffset = Random.Shared.Next(min, max + 1);
-        return Math.Max(1, interval + Random.Shared.Next(-randomOffset, randomOffset + 1));
+        int randomMax = Math.Max(0, config.RandomMax);
+        int offset = randomMax > 0 ? Random.Shared.Next(-randomMax, randomMax + 1) : 0;
+        return Math.Max(1, interval + offset);
     }
 
     private void ApplyConfig(MacroConfig config)
