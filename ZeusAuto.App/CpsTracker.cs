@@ -52,44 +52,68 @@ internal sealed class CountingMouseSimulator : IMouseSimulator
 // ─────────────────────────────────────────────────────────────────────────────
 internal sealed class CpsTracker
 {
-    private readonly Queue<long> _ticks = new();
-    private readonly object      _lock  = new();
-    private const long           WindowMs = 1000;
+    // Timestamps em ticks de Stopwatch dos últimos N cliques registrados.
+    // Mantemos até MaxSamples para calcular o intervalo médio entre cliques.
+    private readonly Queue<long> _timestamps = new();
+    private readonly object      _lock       = new();
+
+    // Janela máxima de amostras: média dos últimos 8 intervalos é suficiente
+    // para estabilidade sem introduzir inércia perceptível.
+    private const int  MaxSamples = 9;    // N cliques → N-1 intervalos
+    private const long StaleMs    = 1200; // descarta amostras com mais de 1.2 s
+
+    private static readonly double TicksPerMs =
+        System.Diagnostics.Stopwatch.Frequency / 1000.0;
 
     /// <summary>
-    /// Registra o timestamp de um clique. Deve ser chamado pelo evento
-    /// Clicked do CountingMouseSimulator.
+    /// Registra o timestamp exato (Stopwatch) de um clique.
     /// </summary>
     public void RegisterClick()
     {
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
         lock (_lock)
         {
-            _ticks.Enqueue(Environment.TickCount64);
-            Prune();
+            _timestamps.Enqueue(now);
+            while (_timestamps.Count > MaxSamples)
+                _timestamps.Dequeue();
         }
     }
 
     /// <summary>
-    /// CPS real medido nos últimos 1000 ms.
-    /// Retorna 0.0 quando nenhum clique ocorreu nessa janela.
+    /// CPS real calculado pelo intervalo médio entre os últimos cliques.
+    /// Retorna 0.0 se não houver cliques recentes ou apenas 1 amostra.
+    /// Sem inércia de arranque: o valor é preciso já a partir do 2.º clique.
     /// </summary>
     public double RealCps
     {
         get
         {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
             lock (_lock)
             {
-                Prune();
-                return _ticks.Count;
+                PruneStale(now);
+
+                // Precisamos de pelo menos 2 timestamps para ter 1 intervalo
+                if (_timestamps.Count < 2)
+                    return 0.0;
+
+                long[] arr   = _timestamps.ToArray();
+                int    pairs = arr.Length - 1;
+
+                // Intervalo médio em ms entre cliques consecutivos
+                double totalMs = (arr[pairs] - arr[0]) / TicksPerMs;
+                double avgMs   = totalMs / pairs;
+
+                return avgMs > 10 ? 1000.0 / avgMs : 0.0;
             }
         }
     }
 
-    private void Prune()
+    private void PruneStale(long now)
     {
-        long cutoff = Environment.TickCount64 - WindowMs;
-        while (_ticks.Count > 0 && _ticks.Peek() < cutoff)
-            _ticks.Dequeue();
+        long cutoffTicks = now - (long)(StaleMs * TicksPerMs);
+        while (_timestamps.Count > 0 && _timestamps.Peek() < cutoffTicks)
+            _timestamps.Dequeue();
     }
 }
 

@@ -279,6 +279,11 @@ public sealed class MacroEngine : IDisposable
 
     private async Task RunMacroAsync(CancellationToken cancellationToken)
     {
+        // Usa Stopwatch para compensar o tempo gasto pelo próprio click e pelo
+        // overhead do scheduler, mantendo a taxa de CPS dentro de ±0.5 CPS do alvo.
+        System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+        long nextTickTicks = 0; // quando o próximo ciclo deve começar (em ticks)
+
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -290,9 +295,44 @@ public sealed class MacroEngine : IDisposable
                     return;
                 }
 
+                // Marca o início deste ciclo como referência para o próximo
+                long cycleStartTicks = sw.ElapsedTicks;
+                if (nextTickTicks == 0)
+                {
+                    nextTickTicks = cycleStartTicks;
+                }
+
                 _mouseSimulator.Click(snapshot.ClickButton ?? snapshot.TriggerButton ?? string.Empty);
+
                 int delay = CalculateDelay(snapshot);
-                await Task.Delay(delay, cancellationToken);
+
+                // Próximo tick alvo = início deste ciclo + intervalo desejado
+                nextTickTicks += (long)(delay * System.Diagnostics.Stopwatch.Frequency / 1000.0);
+
+                // Quanto ainda falta aguardar, descontando o tempo já gasto pelo click
+                long remainingTicks = nextTickTicks - sw.ElapsedTicks;
+                if (remainingTicks > 0)
+                {
+                    int remainingMs = (int)(remainingTicks * 1000 / System.Diagnostics.Stopwatch.Frequency);
+
+                    // Para delays pequenos (<2 ms), spin-wait para evitar jitter do scheduler;
+                    // para os demais, aguarda via Task.Delay e afina com spin-wait.
+                    if (remainingMs >= 2)
+                    {
+                        await Task.Delay(Math.Max(1, remainingMs - 1), cancellationToken);
+                    }
+
+                    // Spin-wait fino para consumir o resíduo sem overshooting
+                    while (sw.ElapsedTicks < nextTickTicks && !cancellationToken.IsCancellationRequested)
+                    {
+                        Thread.SpinWait(10);
+                    }
+                }
+                else
+                {
+                    // Estamos atrasados — resetar referência para evitar acúmulo de débito
+                    nextTickTicks = sw.ElapsedTicks;
+                }
             }
         }
         catch (OperationCanceledException)
