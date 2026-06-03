@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using ZeusAuto.Engine.Core.Interfaces;
 
 namespace ZeusAuto.Engine.Core;
@@ -17,6 +18,8 @@ public sealed class MacroEngine : IDisposable
     private DateTimeOffset? _firstClickReleasedAt;
     private bool _listening;
     private bool _disposed;
+
+    private const int BeepDurationMs = 80;
 
     public MacroEngine(
         IInputListener? inputListener = null,
@@ -128,7 +131,8 @@ public sealed class MacroEngine : IDisposable
     {
         ThrowIfDisposed();
 
-        CancellationTokenSource? cts = null;
+        MacroConfig? configSnapshot = null;
+
         lock (_sync)
         {
             if (_macroTask is { IsCompleted: false })
@@ -143,9 +147,17 @@ public sealed class MacroEngine : IDisposable
             }
 
             _state = MacroState.Running;
-            cts = new CancellationTokenSource();
+            configSnapshot = _config;
+
+            CancellationTokenSource cts = new CancellationTokenSource();
             _macroCancellation = cts;
             _macroTask = RunMacroAsync(cts.Token);
+        }
+
+        // Bip indicativo de início do autoclick — usa a frequência configurada pelo usuário
+        if (configSnapshot.BeepEnabled)
+        {
+            PlayBeep(configSnapshot.BeepHz);
         }
     }
 
@@ -202,6 +214,8 @@ public sealed class MacroEngine : IDisposable
                 }
                 else
                 {
+                    // Fora da janela: trata este clique como o primeiro de um novo ciclo
+                    _state = MacroState.WaitingSecondClick;
                     _firstClickReleasedAt = null;
                 }
             }
@@ -265,6 +279,11 @@ public sealed class MacroEngine : IDisposable
 
     private async Task RunMacroAsync(CancellationToken cancellationToken)
     {
+        // Usa Stopwatch para compensar o tempo gasto pelo próprio click e pelo
+        // overhead do scheduler, mantendo a taxa de CPS dentro de ±0.5 CPS do alvo.
+        System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+        long nextTickTicks = 0; // quando o próximo ciclo deve começar (em ticks)
+
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -276,9 +295,44 @@ public sealed class MacroEngine : IDisposable
                     return;
                 }
 
+                // Marca o início deste ciclo como referência para o próximo
+                long cycleStartTicks = sw.ElapsedTicks;
+                if (nextTickTicks == 0)
+                {
+                    nextTickTicks = cycleStartTicks;
+                }
+
                 _mouseSimulator.Click(snapshot.ClickButton ?? snapshot.TriggerButton ?? string.Empty);
+
                 int delay = CalculateDelay(snapshot);
-                await Task.Delay(delay, cancellationToken);
+
+                // Próximo tick alvo = início deste ciclo + intervalo desejado
+                nextTickTicks += (long)(delay * System.Diagnostics.Stopwatch.Frequency / 1000.0);
+
+                // Quanto ainda falta aguardar, descontando o tempo já gasto pelo click
+                long remainingTicks = nextTickTicks - sw.ElapsedTicks;
+                if (remainingTicks > 0)
+                {
+                    int remainingMs = (int)(remainingTicks * 1000 / System.Diagnostics.Stopwatch.Frequency);
+
+                    // Para delays pequenos (<2 ms), spin-wait para evitar jitter do scheduler;
+                    // para os demais, aguarda via Task.Delay e afina com spin-wait.
+                    if (remainingMs >= 2)
+                    {
+                        await Task.Delay(Math.Max(1, remainingMs - 1), cancellationToken);
+                    }
+
+                    // Spin-wait fino para consumir o resíduo sem overshooting
+                    while (sw.ElapsedTicks < nextTickTicks && !cancellationToken.IsCancellationRequested)
+                    {
+                        Thread.SpinWait(10);
+                    }
+                }
+                else
+                {
+                    // Estamos atrasados — resetar referência para evitar acúmulo de débito
+                    nextTickTicks = sw.ElapsedTicks;
+                }
             }
         }
         catch (OperationCanceledException)
@@ -294,11 +348,33 @@ public sealed class MacroEngine : IDisposable
             return interval;
         }
 
-        int min = Math.Min(config.RandomMin, config.RandomMax);
-        int max = Math.Max(config.RandomMin, config.RandomMax);
-        int randomOffset = Random.Shared.Next(min, max + 1);
-        return Math.Max(1, interval + Random.Shared.Next(-randomOffset, randomOffset + 1));
+        int randomMax = Math.Max(0, config.RandomMax);
+        int offset = randomMax > 0 ? Random.Shared.Next(-randomMax, randomMax + 1) : 0;
+        return Math.Max(1, interval + offset);
     }
+
+    /// <summary>
+    /// Reproduz um bip curto na frequência configurada (200–1000 Hz) para indicar
+    /// que o autoclick foi ativado. Disparado em thread de pool para não bloquear o gatilho.
+    /// </summary>
+    private static void PlayBeep(int hz)
+    {
+        uint freq = (uint)Math.Clamp(hz, 200, 1000);
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                Beep(freq, BeepDurationMs);
+            }
+            catch
+            {
+                // Ignora se o hardware não suportar bip
+            }
+        });
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool Beep(uint dwFreq, uint dwDuration);
 
     private void ApplyConfig(MacroConfig config)
     {

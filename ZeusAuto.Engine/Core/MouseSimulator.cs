@@ -72,11 +72,14 @@ public sealed class MouseSimulator : IMouseSimulator
 
     public void ReleaseX2() => SendMouse(MouseEventFXUp, XButton2);
 
-    private static void Click(uint downFlag, uint upFlag, uint mouseData = 0)
-    {
-        SendMouse(downFlag, mouseData);
-        SendMouse(upFlag, mouseData);
-    }
+   private static void Click(uint downFlag, uint upFlag, uint mouseData = 0)
+{
+    SendMouse(downFlag, mouseData);
+
+    Thread.Sleep(2);
+
+    SendMouse(upFlag, mouseData);
+}
 
     private static void SendMouse(uint flags, uint mouseData = 0)
     {

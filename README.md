@@ -59,13 +59,11 @@ ZeusAuto/
 │       ├── atalhos.js              # Página de atalhos de teclado
 │       └── settings.js             # Página de configurações
 ├── img/
-│   └── ZeusAuto.png                # Mouse background App
+│   └── ZeusAuto.png                # Logo
 └── ZeusAuto.App/                   # Projeto C# WinForms + WebView2
     ├── Program.cs                  # Entry point ([STAThread])
     ├── MainForm.cs                 # Formulário principal, WebView2, OnWebMessageReceived
     ├── NativeBridgeMessage.cs      # DTOs de desserialização do JSON da interface
-    ├── assets/
-    │     └── icon.ico              # Icone do programa  
     └── ZeusAuto.Engine/            # Biblioteca da engine (projeto separado)
         └── Core/
             ├── MacroConfig.cs          # Modelo de configuração da engine
@@ -88,10 +86,10 @@ ZeusAuto/
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                     Interface HTML/JS                    │
+│                     Interface HTML/JS                     │
 │                                                          │
 │  state.macros[key] = { interval, cpsBase, humanize,      │
-│                         cpsMin, cpsMax, shortcuts, ... } │
+│                         cpsMin, cpsMax, shortcuts, ... }  │
 │                                                          │
 │  saveMacroKey()                                          │
 │      └─► ZeusNativeBridge.setActiveMacro(key)            │
@@ -101,11 +99,11 @@ ZeusAuto/
                          │  { type: "profile:update", profile: {...} }
                          ▼
 ┌──────────────────────────────────────────────────────────┐
-│                    MainForm.cs (C#)                      │
+│                    MainForm.cs (C#)                       │
 │                                                          │
 │  OnWebMessageReceived                                    │
 │      └─► Deserializa NativeBridgeMessage                 │
-│      └─► ToMacroConfig(profile)  ← conversão CPS → ms    │
+│      └─► ToMacroConfig(profile)  ← conversão CPS → ms   │
 │      └─► _engine.LoadConfig(config)                      │
 │      └─► _engine.EnableMonitoring()                      │
 │      └─► PostNativeStatus(mensagem) → ExecuteScriptAsync │
@@ -113,7 +111,7 @@ ZeusAuto/
                          │
                          ▼
 ┌──────────────────────────────────────────────────────────┐
-│                   MacroEngine.cs                         │
+│                   MacroEngine.cs                          │
 │                                                          │
 │  InputListener (hook Win32)                              │
 │      MouseDown → HandleInputDown → state machine         │
@@ -386,6 +384,111 @@ O macro só ativa com uma sequência precisa:
 ```
 
 O campo `interval` da interface (padrão 200 ms) é a janela de tempo do passo 3 (`DoubleClickWindowMs`). **Não** é o delay entre cliques.
+
+---
+
+## Bugs Identificados e Correções
+
+### Bug 1 — `cpsBase` não existe em `WebMacroConfig`
+
+**Problema:** O campo `cpsBase` é salvo pelo JS mas `WebMacroConfig` não o declara, logo o C# nunca recebe a velocidade base configurada pelo usuário.
+
+**Correção em `NativeBridgeMessage.cs`:**
+```csharp
+[JsonPropertyName("cpsBase")]
+public int CpsBase { get; set; }
+```
+
+---
+
+### Bug 2 — `interval` (janela do double-click) usado como delay de clique
+
+**Problema:** `ToMacroConfig` em `MainForm.cs` faz:
+```csharp
+IntervalMs = Math.Max(1, macro.Interval), // ← 200 ms (janela do clique duplo!)
+```
+O `interval` da interface é a **janela de tempo** do double-click, não o delay de clique. Usando 200 ms como `IntervalMs`, o macro clica a ≈5 CPS em vez dos 13 CPS configurados.
+
+**Correção em `MainForm.cs`:**
+```csharp
+// Humanize OFF: converte cpsBase para ms
+clickIntervalMs = macro.CpsBase > 0 ? 1000 / macro.CpsBase : 100;
+
+// Humanize ON: usa a média de cpsMin e cpsMax
+double avgCps = (macro.CpsMin + macro.CpsMax) / 2.0;
+clickIntervalMs = avgCps > 0 ? (int)(1000.0 / avgCps) : 100;
+
+// A janela do double-click vai para o campo correto:
+DoubleClickWindowMs = macro.Interval,
+IntervalMs = clickIntervalMs,
+```
+
+---
+
+### Bug 3 — `RandomMin`/`RandomMax` recebem CPS em vez de ms
+
+**Problema:** `ToMacroConfig` passa:
+```csharp
+RandomMin = macro.CpsMin, // ex: 10 (CPS!)
+RandomMax = macro.CpsMax, // ex: 16 (CPS!)
+```
+O `CalculateDelay` usa esses valores como **offset em ms** (`interval ± randomOffset`). Somar 10–16 ms a um delay de 77 ms resulta em CPS totalmente errado, sem relação com o range configurado.
+
+**Correção em `MainForm.cs`:**
+```csharp
+// CPS maior → delay menor → RandomMin
+// CPS menor → delay maior → RandomMax
+int msAtCpsMax = 1000 / macro.CpsMax;
+int msAtCpsMin = 1000 / macro.CpsMin;
+RandomMin = 0;
+RandomMax = (msAtCpsMin - msAtCpsMax) / 2;
+```
+
+---
+
+### Bug 4 — `DoubleClickWindowMs` nunca é preenchido
+
+**Problema:** `MacroConfig.DoubleClickWindowMs` é `int?` e fica `null` porque `ToMacroConfig` nunca o atribui. Em `IsWithinDoubleClickWindow()`:
+```csharp
+if (!config.DoubleClickWindowMs.HasValue || !_firstClickReleasedAt.HasValue)
+{
+    return true; // ← sem janela definida, qualquer dois cliques ativam
+}
+```
+Sem a janela, o double-click não tem restrição de tempo — o comportamento esperado não funciona.
+
+**Correção:** Atribuir `DoubleClickWindowMs = macro.Interval` no `ToMacroConfig` (resolvido junto com o Bug 2).
+
+---
+
+### Bug 5 — Sync inicial com `state.macros` vazio desabilita a engine
+
+**Problema:** No `native-bridge.js`, `DOMContentLoaded` chama `ZeusNativeBridge.sync()` com 100 ms de delay. Se ainda não há macros configurados, `buildProfile()` produz `{ enabled: false }`. O C# recebe isso, chama `LoadConfig` com `Enabled = false`, e a engine para. Mesmo depois de configurar um macro, o `EnableMonitoring()` é chamado, mas o estado `Enabled = false` na config faz `StartMacro()` retornar imediatamente.
+
+**Correção em `native-bridge.js`:**
+```js
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (Object.keys(state.macros).length > 0) {
+      ZeusNativeBridge.sync();
+    }
+  }, 100);
+});
+```
+
+### Bug 6 — Cliques sintéticos do `SendInput` interrompem a engine imediatamente
+
+**Problema:** O `MouseHookCallback` no `InputListener` não filtrava eventos sintéticos gerados pelo próprio `MouseSimulator` via `SendInput`. Cada clique emitido pelo macro durante o estado `Running` disparava um `WM_LBUTTONUP` de volta no hook, que chegava em `HandleInputUp` e chamava `StopMacro()` — parando o macro logo após o primeiro clique sintético. O resultado era que o auto-clicker nunca iniciava de fato.
+
+**Correção em `InputListener.cs`:**
+```csharp
+// Ignora eventos sintéticos gerados pelo próprio SendInput (LLMHF_INJECTED = 0x1)
+bool isInjected = (data.flags & 0x1) != 0;
+if (!isInjected)
+{
+    // processa o evento normalmente
+}
+```
 
 ---
 

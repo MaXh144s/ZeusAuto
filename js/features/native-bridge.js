@@ -35,6 +35,13 @@ const ZeusNativeBridge = {
   setActiveMacro(key) {
     this.activeMacro = key;
     this.sync();
+  },
+
+  // BUG FIX: comando dedicado para o atalho cpsOverlay alternar o overlay
+  // sem precisar reconstruir toda a engine (evita reiniciar macros ativos)
+  toggleOverlay() {
+    if (!this.isAvailable()) return;
+    window.chrome.webview.postMessage({ type: 'overlay:toggle' });
   }
 };
 
@@ -61,7 +68,8 @@ window.ZeusNativeBridgeStatus = function(message, isError) {
   const originalOpenConfigureForKey = window.openConfigureForKey;
   window.openConfigureForKey = function(key, isNew) {
     originalOpenConfigureForKey(key, isNew);
-    if (state.macros[key]) ZeusNativeBridge.setActiveMacro(key);
+    // Só sincroniza se o macro JÁ existe (não ao abrir config de novo macro)
+    if (!isNew && state.macros[key]) ZeusNativeBridge.setActiveMacro(key);
   };
 
   const originalHandleImportProfile = window.handleImportProfile;
@@ -77,6 +85,12 @@ window.ZeusNativeBridgeStatus = function(message, isError) {
   };
 
   window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => ZeusNativeBridge.sync(), 100);
+    // Só sincroniza na inicialização se já houver macros salvos
+    // (evita enviar enabled:false e desabilitar a engine prematuramente)
+    setTimeout(() => {
+      if (Object.keys(state.macros).length > 0) {
+        ZeusNativeBridge.sync();
+      }
+    }, 100);
   });
 })();
