@@ -59,11 +59,15 @@ ZeusAuto/
 │       ├── atalhos.js              # Página de atalhos de teclado
 │       └── settings.js             # Página de configurações
 ├── img/
-│   └── ZeusAuto.png                # Logo
+│   └── ZeusAuto.png                # Imagem Mouse Background
 └── ZeusAuto.App/                   # Projeto C# WinForms + WebView2
+    ├── CpsOverlayForms.cs          # Janela de exibição CPS 
+    ├── CpsTracker.cs               # Monitoramento e cálculo da taxa real de CPS da engine 
     ├── Program.cs                  # Entry point ([STAThread])
     ├── MainForm.cs                 # Formulário principal, WebView2, OnWebMessageReceived
     ├── NativeBridgeMessage.cs      # DTOs de desserialização do JSON da interface
+    ├── assets/
+    │     └── ZeusAuto.ico          #Logo app
     └── ZeusAuto.Engine/            # Biblioteca da engine (projeto separado)
         └── Core/
             ├── MacroConfig.cs          # Modelo de configuração da engine
