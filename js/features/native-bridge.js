@@ -35,6 +35,13 @@ const ZeusNativeBridge = {
   setActiveMacro(key) {
     this.activeMacro = key;
     this.sync();
+  },
+
+  // BUG FIX: comando dedicado para o atalho cpsOverlay alternar o overlay
+  // sem precisar reconstruir toda a engine (evita reiniciar macros ativos)
+  toggleOverlay() {
+    if (!this.isAvailable()) return;
+    window.chrome.webview.postMessage({ type: 'overlay:toggle' });
   }
 };
 

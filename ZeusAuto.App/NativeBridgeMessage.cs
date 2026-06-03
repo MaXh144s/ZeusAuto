@@ -27,6 +27,28 @@ internal sealed class WebProfile
 
     [JsonPropertyName("atalhos")]
     public Dictionary<string, WebShortcutConfig>? Atalhos { get; set; }
+
+    [JsonPropertyName("settings")]
+    public WebSettings? Settings { get; set; }
+}
+
+internal sealed class WebSettings
+{
+    /// <summary>
+    /// Espelha state.settings.cpsOverlay do JS.
+    /// Quando true, a janela CPS deve ser exibida.
+    /// </summary>
+    [JsonPropertyName("cpsOverlay")]
+    public bool CpsOverlay { get; set; }
+
+    [JsonPropertyName("showCpsChange")]
+    public bool ShowCpsChange { get; set; }
+
+    [JsonPropertyName("alwaysVisible")]
+    public bool AlwaysVisible { get; set; }
+
+    [JsonPropertyName("animate")]
+    public bool Animate { get; set; }
 }
 
 internal sealed class WebMacroConfig

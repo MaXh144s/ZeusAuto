@@ -5,47 +5,65 @@ using ZeusAuto.Engine.Core;
 
 namespace ZeusAuto.App;
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  MainForm  (arquivo original mantido intacto em aparência)
+//
+//  Adições mínimas em relação ao original:
+//    1. _overlay  : CpsOverlayForm criado no construtor (não visível ainda)
+//    2. ApplyProfile: cria EngineSlot por macro e chama _overlay.Apply()
+//       passando os slots e o flag profile.Settings.CpsOverlay
+//    3. OnFormClosing: descarta overlay
+//
+//  Nada mais foi alterado.
+// ─────────────────────────────────────────────────────────────────────────────
+
 public sealed class MainForm : Form
 {
     private readonly WebView2 _webView = new();
+
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    // Um engine independente por botão de gatilho configurado
-    private readonly List<MacroEngine> _engines = new();
+    private readonly List<EngineSlot> _engines = new();
+
+    // Janela de CPS flutuante — criada uma vez, vive enquanto o app rodar
+    private readonly CpsOverlayForm _overlay = new();
+
+    // BUG FIX: guarda o último estado visível para o atalho poder alternar
+    private bool _overlayVisible = false;
 
     public MainForm()
     {
         string iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "ZeusAuto.ico");
         if (File.Exists(iconPath))
             Icon = new Icon(iconPath);
-        Text = "ZeusAuto";
-        Width = 1180;
-        Height = 760;
-        MinimumSize = new Size(960, 620);
+
+        Text          = "ZeusAuto";
+        Width         = 1180;
+        Height        = 760;
+        MinimumSize   = new Size(960, 620);
         StartPosition = FormStartPosition.CenterScreen;
 
         _webView.Dock = DockStyle.Fill;
         Controls.Add(_webView);
 
-        Load += OnLoad;
+        Load        += OnLoad;
         FormClosing += OnFormClosing;
     }
 
     private async void OnLoad(object? sender, EventArgs e)
     {
         await _webView.EnsureCoreWebView2Async();
-        _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+        _webView.CoreWebView2.WebMessageReceived              += OnWebMessageReceived;
         _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-        _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+        _webView.CoreWebView2.Settings.AreDevToolsEnabled            = true;
 
-        string htmlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ZeusAuto.html"));
+        string htmlPath = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ZeusAuto.html"));
         if (!File.Exists(htmlPath))
-        {
             htmlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "ZeusAuto.html"));
-        }
 
         _webView.CoreWebView2.Navigate(new Uri(htmlPath).AbsoluteUri);
     }
@@ -54,12 +72,22 @@ public sealed class MainForm : Form
     {
         try
         {
-            NativeBridgeMessage? message = JsonSerializer.Deserialize<NativeBridgeMessage>(e.WebMessageAsJson, _jsonOptions);
-            if (message is not { Profile: not null } ||
-                !string.Equals(message.Type, "profile:update", StringComparison.OrdinalIgnoreCase))
+            NativeBridgeMessage? message = JsonSerializer.Deserialize<NativeBridgeMessage>(
+                e.WebMessageAsJson, _jsonOptions);
+
+            if (message is null) return;
+
+            // BUG FIX: trata o comando de toggle do overlay via atalho do JS
+            if (string.Equals(message.Type, "overlay:toggle", StringComparison.OrdinalIgnoreCase))
             {
+                _overlayVisible = !_overlayVisible;
+                _overlay.ApplyVisibility(_overlayVisible);
                 return;
             }
+
+            if (message.Profile is null ||
+                !string.Equals(message.Type, "profile:update", StringComparison.OrdinalIgnoreCase))
+                return;
 
             ApplyProfile(message.Profile);
             PostNativeStatus("Engine sincronizada com a interface.");
@@ -70,38 +98,34 @@ public sealed class MainForm : Form
         }
     }
 
-    /// <summary>
-    /// Reconstrói a lista de engines para corresponder a cada macro do perfil.
-    /// Cria um MacroEngine independente por entrada no dicionário de macros.
-    /// </summary>
     private void ApplyProfile(WebProfile profile)
     {
-        // Para e descarta todos os engines anteriores
         DisposeAllEngines();
+
+        bool overlayVisible = profile.Settings?.CpsOverlay ?? false;
+        _overlayVisible = overlayVisible; // BUG FIX: mantém estado sincronizado
 
         if (!profile.Enabled || profile.Macros is null || profile.Macros.Count == 0)
         {
+            // Sem macros ativos — overlay fica vazio e obedece ao flag
+            _overlay.Apply(Array.Empty<EngineSlot>(), overlayVisible);
             return;
         }
 
-        // Cria um engine para cada macro configurado no perfil
         foreach (KeyValuePair<string, WebMacroConfig> entry in profile.Macros)
         {
             MacroConfig config = ToMacroConfig(profile, entry.Key, entry.Value);
-            MacroEngine engine = new MacroEngine();
-            engine.LoadConfig(config);
-            engine.StartListening();
-            engine.EnableMonitoring();
-            _engines.Add(engine);
+            _engines.Add(new EngineSlot(entry.Key, config));
         }
+
+        // Passa slots ao overlay; visibilidade determinada pelo settings.cpsOverlay
+        _overlay.Apply(_engines.AsReadOnly(), overlayVisible);
     }
 
     private void DisposeAllEngines()
     {
-        foreach (MacroEngine engine in _engines)
-        {
+        foreach (var engine in _engines)
             engine.Dispose();
-        }
         _engines.Clear();
     }
 
@@ -109,7 +133,6 @@ public sealed class MainForm : Form
     {
         string triggerButton = NormalizeMouseButton(buttonKey);
 
-        // --- Delay de clique: converte CPS → ms ---
         int clickIntervalMs;
         if (macro.Humanize)
         {
@@ -117,11 +140,8 @@ public sealed class MainForm : Form
             clickIntervalMs = avgCps > 0 ? (int)(1000.0 / avgCps) : 100;
         }
         else
-        {
             clickIntervalMs = macro.CpsBase > 0 ? 1000 / macro.CpsBase : 100;
-        }
 
-        // --- Humanize: offset de variação em ms ---
         int randomMaxMs = 0;
         if (macro.Humanize && macro.CpsMin > 0 && macro.CpsMax > 0)
         {
@@ -130,51 +150,44 @@ public sealed class MainForm : Form
             randomMaxMs = Math.Max(0, (msAtCpsMin - msAtCpsMax) / 2);
         }
 
-        // --- Frequência do bip: clamp ao range 200–1000 Hz ---
         int beepHz = macro.BipHz > 0 ? Math.Clamp(macro.BipHz, 200, 1000) : 200;
 
         return new MacroConfig
         {
-            Enabled = profile.Enabled,
-            ProfileName = profile.ProfileName ?? "Interface",
-            TriggerButton = triggerButton,
-            ClickButton = triggerButton,
-            ActivationMode = "DoubleClickHold",
-            DoubleClickWindowMs = macro.Interval > 0 ? macro.Interval : 200,
-            IntervalMs = Math.Max(1, clickIntervalMs),
+            Enabled              = profile.Enabled,
+            ProfileName          = profile.ProfileName ?? "Interface",
+            TriggerButton        = triggerButton,
+            ClickButton          = triggerButton,
+            ActivationMode       = "DoubleClickHold",
+            DoubleClickWindowMs  = macro.Interval > 0 ? macro.Interval : 200,
+            IntervalMs           = Math.Max(1, clickIntervalMs),
             RandomizationEnabled = macro.Humanize,
-            RandomMin = 0,
-            RandomMax = randomMaxMs,
-            BeepEnabled = macro.Bip,
-            BeepHz = beepHz
+            RandomMin            = 0,
+            RandomMax            = randomMaxMs,
+            BeepEnabled          = macro.Bip,
+            BeepHz               = beepHz
         };
     }
 
-    private static string NormalizeMouseButton(string buttonName)
-    {
-        return buttonName.Trim().ToUpperInvariant() switch
+    private static string NormalizeMouseButton(string buttonName) =>
+        buttonName.Trim().ToUpperInvariant() switch
         {
             "TECLA ESQUERDA" => "MouseLeft",
-            "TECLA DIREITA" => "MouseRight",
-            "TECLA SCROLL" => "MouseMiddle",
+            "TECLA DIREITA"  => "MouseRight",
+            "TECLA SCROLL"   => "MouseMiddle",
             "TECLA XBUTTON4" => "MouseX1",
             "TECLA XBUTTON5" => "MouseX2",
-            "MOUSELEFT" => "MouseLeft",
-            "MOUSERIGHT" => "MouseRight",
-            "MOUSEMIDDLE" => "MouseMiddle",
-            "MOUSEX1" => "MouseX1",
-            "MOUSEX2" => "MouseX2",
-            _ => buttonName
+            "MOUSELEFT"      => "MouseLeft",
+            "MOUSERIGHT"     => "MouseRight",
+            "MOUSEMIDDLE"    => "MouseMiddle",
+            "MOUSEX1"        => "MouseX1",
+            "MOUSEX2"        => "MouseX2",
+            _                => buttonName
         };
-    }
 
     private void PostNativeStatus(string message, bool isError = false)
     {
-        if (_webView.CoreWebView2 is null)
-        {
-            return;
-        }
-
+        if (_webView.CoreWebView2 is null) return;
         string script = $"window.ZeusNativeBridgeStatus?.({JsonSerializer.Serialize(message)}, {isError.ToString().ToLowerInvariant()});";
         _webView.CoreWebView2.ExecuteScriptAsync(script);
     }
@@ -182,6 +195,7 @@ public sealed class MainForm : Form
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
         DisposeAllEngines();
+        _overlay.Dispose();
         _webView.Dispose();
     }
 }

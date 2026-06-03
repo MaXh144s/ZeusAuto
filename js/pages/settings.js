@@ -8,6 +8,8 @@ function toggleSetting(id) {
   if (k === 'animate') {
     document.body.classList.toggle('no-animate', !state.settings.animate);
   }
+  // BUG FIX: sincroniza com o C# para que o overlay responda ao toggle
+  ZeusNativeBridge.sync();
 }
 
 // ============================================================
