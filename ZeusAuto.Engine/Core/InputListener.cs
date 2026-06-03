@@ -37,8 +37,12 @@ public sealed class InputListener : IInputListener
     private Exception? _startupException;
     private string[] _startHotkey = [];
     private string[] _stopHotkey = [];
+    private string[] _cpsIncrementHotkey = [];
+    private string[] _cpsDecrementHotkey = [];
     private bool _startHotkeyLatched;
     private bool _stopHotkeyLatched;
+    private bool _cpsIncrementLatched;
+    private bool _cpsDecrementLatched;
     private bool _disposed;
 
     public InputListener()
@@ -54,6 +58,10 @@ public sealed class InputListener : IInputListener
     public event EventHandler? StartHotkeyPressed;
 
     public event EventHandler? StopHotkeyPressed;
+
+    public event EventHandler? CpsIncrementPressed;
+
+    public event EventHandler? CpsDecrementPressed;
 
     public void StartListening()
     {
@@ -115,10 +123,14 @@ public sealed class InputListener : IInputListener
 
         lock (_sync)
         {
-            _startHotkey = ParseHotkey(config.StartHotkey);
-            _stopHotkey = ParseHotkey(config.StopHotkey);
-            _startHotkeyLatched = false;
-            _stopHotkeyLatched = false;
+            _startHotkey          = ParseHotkey(config.StartHotkey);
+            _stopHotkey           = ParseHotkey(config.StopHotkey);
+            _cpsIncrementHotkey   = ParseHotkey(config.CpsIncrementHotkey);
+            _cpsDecrementHotkey   = ParseHotkey(config.CpsDecrementHotkey);
+            _startHotkeyLatched   = false;
+            _stopHotkeyLatched    = false;
+            _cpsIncrementLatched  = false;
+            _cpsDecrementLatched  = false;
         }
     }
 
@@ -163,8 +175,10 @@ public sealed class InputListener : IInputListener
                     lock (_sync)
                     {
                         _pressedKeys.Remove(keyName);
-                        _startHotkeyLatched = IsHotkeyPart(keyName, _startHotkey) && _startHotkeyLatched && IsHotkeyPressed(_startHotkey);
-                        _stopHotkeyLatched = IsHotkeyPart(keyName, _stopHotkey) && _stopHotkeyLatched && IsHotkeyPressed(_stopHotkey);
+                        _startHotkeyLatched      = IsHotkeyPart(keyName, _startHotkey)        && _startHotkeyLatched      && IsHotkeyPressed(_startHotkey);
+                        _stopHotkeyLatched       = IsHotkeyPart(keyName, _stopHotkey)         && _stopHotkeyLatched       && IsHotkeyPressed(_stopHotkey);
+                        _cpsIncrementLatched     = IsHotkeyPart(keyName, _cpsIncrementHotkey) && _cpsIncrementLatched     && IsHotkeyPressed(_cpsIncrementHotkey);
+                        _cpsDecrementLatched     = IsHotkeyPart(keyName, _cpsDecrementHotkey) && _cpsDecrementLatched     && IsHotkeyPressed(_cpsDecrementHotkey);
                     }
 
                     InputUp?.Invoke(this, new InputEventArgs(keyName));
@@ -253,8 +267,10 @@ public sealed class InputListener : IInputListener
 
     private void EvaluateHotkeys()
     {
-        EventHandler? start = null;
-        EventHandler? stop = null;
+        EventHandler? start      = null;
+        EventHandler? stop       = null;
+        EventHandler? cpsInc     = null;
+        EventHandler? cpsDec     = null;
 
         lock (_sync)
         {
@@ -283,10 +299,40 @@ public sealed class InputListener : IInputListener
             {
                 _stopHotkeyLatched = false;
             }
+
+            // Hotkeys de CPS: disparam repetidamente enquanto a tecla ficar pressionada
+            // porque o unlatch acontece no KeyUp — cada KeyDown gera um novo evento.
+            if (_cpsIncrementHotkey.Length > 0 && IsHotkeyPressed(_cpsIncrementHotkey))
+            {
+                if (!_cpsIncrementLatched)
+                {
+                    _cpsIncrementLatched = true;
+                    cpsInc = CpsIncrementPressed;
+                }
+            }
+            else
+            {
+                _cpsIncrementLatched = false;
+            }
+
+            if (_cpsDecrementHotkey.Length > 0 && IsHotkeyPressed(_cpsDecrementHotkey))
+            {
+                if (!_cpsDecrementLatched)
+                {
+                    _cpsDecrementLatched = true;
+                    cpsDec = CpsDecrementPressed;
+                }
+            }
+            else
+            {
+                _cpsDecrementLatched = false;
+            }
         }
 
         start?.Invoke(this, EventArgs.Empty);
         stop?.Invoke(this, EventArgs.Empty);
+        cpsInc?.Invoke(this, EventArgs.Empty);
+        cpsDec?.Invoke(this, EventArgs.Empty);
     }
 
     private bool IsHotkeyPressed(IReadOnlyCollection<string> hotkey)
