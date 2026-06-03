@@ -1,8 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-<PropertyGroup>
-    <ApplicationIcon>assets\icon.ico</ApplicationIcon>
-</PropertyGroup>
+<ItemGroup>
+    <Content Include="assets\ZeusAuto.ico">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+</ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ZeusAuto.Engine\ZeusAuto.Engine.csproj" />

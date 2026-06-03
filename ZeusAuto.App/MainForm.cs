@@ -18,6 +18,9 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
+        string iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "ZeusAuto.ico");
+        if (File.Exists(iconPath))
+            Icon = new Icon(iconPath);
         Text = "ZeusAuto";
         Width = 1180;
         Height = 760;
