@@ -9,6 +9,9 @@ namespace ZeusAuto.App;
 //  Overlay TopMost que exibe os CPS de cada macro lado a lado.
 //  Pintado inteiramente no OnPaint — sem controles filhos.
 //
+//  Layout 100 % responsivo: todas as fontes, posições e tamanhos derivam
+//  de Width/Height em tempo real. Redimensionar a janela reescala tudo.
+//
 //  Por slot exibe:
 //    • Dot de status (verde ativo / cinza idle)
 //    • Nome do botão
@@ -30,7 +33,14 @@ public sealed class CpsOverlayForm : Form
     private static readonly Color ColIdle   = Color.FromArgb(120, 120, 140);
     private static readonly Color ColName   = Color.FromArgb(240, 242, 255);
     private static readonly Color ColMuted  = Color.FromArgb(140, 145, 165);
-    private const int R = 12;
+
+    // Largura mínima confortável por slot (px). Abaixo disso o conteúdo
+    // começa a ficar apertado — usada para calcular o raio do canto também.
+    private const int SlotMinW = 140;
+    // Altura mínima da janela (px)
+    private const int SlotMinH = 60;
+    // Altura de referência na qual as proporções foram desenhadas originalmente
+    private const float RefH = 110f;
 
     private IReadOnlyList<EngineSlot> _slots     = Array.Empty<EngineSlot>();
     private bool                      _forceHide = false;
@@ -47,7 +57,7 @@ public sealed class CpsOverlayForm : Form
         Opacity         = 0.92;
         Width           = 220;
         Height          = 110;
-        MinimumSize     = new Size(140, 80);
+        MinimumSize     = new Size(SlotMinW, SlotMinH);
         StartPosition   = FormStartPosition.Manual;
 
         SetStyle(
@@ -92,8 +102,24 @@ public sealed class CpsOverlayForm : Form
         }
 
         _forceHide = false;
-        Width  = Math.Clamp(slots.Count * 190, 220, 900);
-        Height = 110;
+        // Atualiza o tamanho mínimo conforme o número de slots,
+        // garantindo que a janela não possa ser reduzida abaixo do espaço
+        // mínimo necessário para exibir todos os macros lado a lado.
+        int newMinW = slots.Count * SlotMinW;
+        MinimumSize = new Size(newMinW, SlotMinH);
+        // Só redefine o tamanho se for a primeira carga (usuário pode ter redimensionado)
+        if (!Visible)
+        {
+            Width  = Math.Clamp(slots.Count * 190, newMinW, 900);
+            Height = 110;
+        }
+        else if (Width < newMinW)
+        {
+            // Janela já visível mas menor que o novo mínimo (ex.: adicionou
+            // um segundo macro enquanto a janela estava reduzida).
+            // Expande suavemente até o mínimo necessário.
+            Width = newMinW;
+        }
         ApplyRegion();
         PositionGripper();
         ApplyVisibility(visible);
@@ -107,7 +133,7 @@ public sealed class CpsOverlayForm : Form
         if (visible) Show(); else Hide();
     }
 
-    // ── Pintura ───────────────────────────────────────────────────────────────
+    // ── Pintura responsiva ────────────────────────────────────────────────────
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -115,28 +141,62 @@ public sealed class CpsOverlayForm : Form
         g.SmoothingMode     = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
 
+        int count = _slots.Count;
+
+        // ── Escala global derivada da altura atual ──────────────────────────
+        // Todas as métricas verticais escalam proporcionalmente a RefH = 110.
+        float scale = Height / RefH;
+
+        // Raio dos cantos: escala com a altura, limitado para não ficar enorme
+        int cornerR = Math.Clamp((int)(12 * scale), 6, 20);
+
         // Fundo
         using (var b = new SolidBrush(ColBg))
-            g.FillPath(b, RoundRect(new Rectangle(0, 0, Width, Height), R));
+            g.FillPath(b, RoundRect(new Rectangle(0, 0, Width, Height), cornerR));
 
         // Glow
         using (var p = new Pen(Color.FromArgb(20, ColGlow), 6f))
-            g.DrawPath(p, RoundRect(new Rectangle(-1, -1, Width + 1, Height + 1), R + 2));
+            g.DrawPath(p, RoundRect(new Rectangle(-1, -1, Width + 1, Height + 1), cornerR + 2));
 
         // Borda
         using (var p = new Pen(ColBorder, 1.2f))
-            g.DrawPath(p, RoundRect(new Rectangle(1, 1, Width - 3, Height - 3), R));
+            g.DrawPath(p, RoundRect(new Rectangle(1, 1, Width - 3, Height - 3), cornerR));
 
-        int count = _slots.Count;
         if (count == 0) return;
 
-        int slotW = Width / count;
+        // ── Largura de cada slot ────────────────────────────────────────────
+        // MinimumSize já garante Width >= count * SlotMinW, então
+        // Width / count é sempre >= SlotMinW. Mantemos o Math.Max por
+        // segurança defensiva (ex.: durante transição de resize).
+        int slotW = Math.Max(SlotMinW, Width / count);
 
-        using var fName   = new Font("Segoe UI", 8.5f, FontStyle.Bold,    GraphicsUnit.Point);
-        using var fCps    = new Font("Segoe UI", 20f,  FontStyle.Bold,    GraphicsUnit.Point);
-        using var fFooter = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
-        var sfL = new StringFormat { Alignment = StringAlignment.Near,   LineAlignment = StringAlignment.Center };
-        var sfR = new StringFormat { Alignment = StringAlignment.Far,    LineAlignment = StringAlignment.Center };
+        // ── Tamanhos de fonte derivados de Height ───────────────────────────
+        float fnName   = Math.Max(6f,  8.5f  * scale);
+        float fnCps    = Math.Max(10f, 20f   * scale);
+        float fnFooter = Math.Max(5f,  9.5f  * scale);   // era 7.5 → sobe para 9.5
+
+        using var fName   = new Font("Segoe UI", fnName,   FontStyle.Bold,    GraphicsUnit.Point);
+        using var fCps    = new Font("Segoe UI", fnCps,    FontStyle.Bold,    GraphicsUnit.Point);
+        using var fFooter = new Font("Segoe UI", fnFooter, FontStyle.Regular, GraphicsUnit.Point);
+
+        var sfL = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+        var sfR = new StringFormat { Alignment = StringAlignment.Far,  LineAlignment = StringAlignment.Center };
+
+        // ── Métricas verticais proporcionais ───────────────────────────────
+        int pad      = Math.Max(8,  (int)(14  * scale));   // padding lateral interno
+        int dotSize  = Math.Max(5,  (int)(8   * scale));   // diâmetro do dot
+        int mid      = Height / 2;
+
+        // Offsets verticais relativos ao centro (mid)
+        float offDot    = -26f * scale;   // dot de status
+        float offName   = -30f * scale;   // label do nome
+        float offCps    = -18f * scale;   // número CPS grande
+        float offFooter =  20f * scale;   // rodapé ms | cfg
+
+        // Alturas das faixas
+        float hName    = Math.Max(12f, 18f * scale);
+        float hCps     = Math.Max(20f, 36f * scale);
+        float hFooter  = Math.Max(10f, 18f * scale);
 
         for (int i = 0; i < count; i++)
         {
@@ -144,44 +204,46 @@ public sealed class CpsOverlayForm : Form
             bool active = slot.State == MacroState.Running;
             Color col   = active ? ColActive : ColIdle;
 
-            int x   = i * slotW + 14;
-            int mid = Height / 2;
-            int w   = slotW - 28; // largura útil com padding direito
+            int x = i * slotW + pad;
+            int w = slotW - pad * 2;
 
             // Separador vertical entre slots
             if (i > 0)
                 using (var p = new Pen(Color.FromArgb(40, ColBorder), 1f))
-                    g.DrawLine(p, i * slotW, 12, i * slotW, Height - 12);
+                    g.DrawLine(p, i * slotW, (int)(12 * scale), i * slotW, Height - (int)(12 * scale));
 
             // Dot de status
             using (var b = new SolidBrush(col))
-                g.FillEllipse(b, x, mid - 26, 8, 8);
+                g.FillEllipse(b, x, mid + offDot, dotSize, dotSize);
 
             // Nome do botão
             using (var b = new SolidBrush(ColName))
                 g.DrawString(FriendlyName(slot.MacroKey), fName, b,
-                    new RectangleF(x + 12, mid - 30, w - 12, 18), sfL);
+                    new RectangleF(x + dotSize + 3, mid + offName, w - dotSize - 3, hName), sfL);
 
-            // CPS real (grande, centro)
-            double realCps  = active ? Math.Truncate(slot.RealCps * 10.0) / 10.0 : 0.0;
+            // CPS real (fonte grande, centro)
+            double realCps = active ? Math.Truncate(slot.RealCps * 10.0) / 10.0 : 0.0;
             using (var b = new SolidBrush(col))
                 g.DrawString($"{realCps:F1} CPS", fCps, b,
-                    new RectangleF(x, mid - 18, w, 36), sfL);
+                    new RectangleF(x, mid + offCps, w, hCps), sfL);
 
             // Rodapé: "200 ms  |  13.0 cfg"
+            // Ambos os textos ficam dentro do rect do slot (x … x+w),
+            // garantindo que o cfgText alinhado à direita não ultrapasse
+            // a borda do slot nem sobreponha o slot vizinho.
             string msText  = slot.DoubleClickWindowMs.HasValue
                 ? $"{slot.DoubleClickWindowMs} ms"
                 : "-- ms";
-            string cfgText = $"{slot.ConfigCps:F1} cfg";
+            string cfgText = $"{slot.ConfigCps:F1} CPS";
 
             using (var b = new SolidBrush(ColMuted))
             {
-                g.DrawString(msText,  fFooter, b, new RectangleF(x,     mid + 20, w, 16), sfL);
-                g.DrawString(cfgText, fFooter, b, new RectangleF(x, mid + 20, w, 16), sfR);
+                g.DrawString(msText,  fFooter, b, new RectangleF(x,         mid + offFooter, w, hFooter), sfL);
+                g.DrawString(cfgText, fFooter, b, new RectangleF(x,         mid + offFooter, w, hFooter), sfR);
             }
         }
 
-        // Gripper visual
+        // Gripper visual (sempre no canto inferior direito)
         using var rp = new Pen(Color.FromArgb(90, ColBorder), 1f);
         g.DrawLine(rp, Width - 16, Height - 6,  Width - 6, Height - 16);
         g.DrawLine(rp, Width - 22, Height - 6,  Width - 6, Height - 22);
@@ -209,7 +271,7 @@ public sealed class CpsOverlayForm : Form
     private void ApplyRegion()
     {
         Region?.Dispose();
-        Region = new Region(RoundRect(new Rectangle(0, 0, Width, Height), R));
+        Region = new Region(RoundRect(new Rectangle(0, 0, Width, Height), Math.Clamp((int)(12 * (Height / RefH)), 6, 20)));
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

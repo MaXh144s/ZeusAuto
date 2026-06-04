@@ -91,12 +91,34 @@ public sealed class MainForm : Form
                 !string.Equals(message.Type, "profile:update", StringComparison.OrdinalIgnoreCase))
                 return;
 
+            ApplyAlwaysVisible(message.Profile.Settings?.AlwaysVisible ?? false);
             ApplyProfile(message.Profile);
             PostNativeStatus("Engine sincronizada com a interface.");
         }
         catch (Exception ex)
         {
             PostNativeStatus($"Erro ao sincronizar engine: {ex.Message}", isError: true);
+        }
+    }
+
+    // Aplica o modo "Sempre Vis�vel": quando ativo, a janela principal
+    // adota overlay (TopMost + sem borda + semi-transparente); quando
+    // desativado, volta ao estilo normal de janela.
+    private void ApplyAlwaysVisible(bool alwaysVisible)
+    {
+        if (InvokeRequired) { Invoke(() => ApplyAlwaysVisible(alwaysVisible)); return; }
+
+        if (alwaysVisible)
+        {
+            TopMost         = true;
+            FormBorderStyle = FormBorderStyle.None;
+            Opacity         = 0.92;
+        }
+        else
+        {
+            TopMost         = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            Opacity         = 1.0;
         }
     }
 

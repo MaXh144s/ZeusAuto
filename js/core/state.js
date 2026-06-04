@@ -10,7 +10,7 @@ const state = {
     bipToggle:  { label:'Ligar / Desligar Bip sonoro',  desc:'Ativa ou desativa o bip de feedback',     enabled:true, keys:['Ctrl','Shift','I'] },
     encerrar:   { label:'Encerrar Programa',            desc:'Fecha o programa completamente',           enabled:true, keys:[] },
   },
-  settings: { cpsOverlay:true, showCpsChange:true, alwaysVisible:true, animate:true },
+  settings: { cpsOverlay:true, showCpsChange:true, alwaysVisible:false, animate:true },
   editingKey: null,
   options: { humanize:false, shortcuts:false, bip:false },
   // Shortcut recording state

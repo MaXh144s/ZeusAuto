@@ -21,6 +21,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
+    <ApplicationIcon>assets\ZeusAuto.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>
