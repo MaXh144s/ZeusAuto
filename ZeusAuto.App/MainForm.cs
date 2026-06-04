@@ -31,6 +31,8 @@ public sealed class MainForm : Form
     // Janela de CPS flutuante — criada uma vez, vive enquanto o app rodar
     private readonly CpsOverlayForm _overlay = new();
 
+
+
     // BUG FIX: guarda o último estado visível para o atalho poder alternar
     private bool _overlayVisible = false;
 
@@ -115,7 +117,9 @@ public sealed class MainForm : Form
         foreach (KeyValuePair<string, WebMacroConfig> entry in profile.Macros)
         {
             MacroConfig config = ToMacroConfig(profile, entry.Key, entry.Value);
-            _engines.Add(new EngineSlot(entry.Key, config));
+            var slot = new EngineSlot(entry.Key, config);
+
+            _engines.Add(slot);
         }
 
         // Passa slots ao overlay; visibilidade determinada pelo settings.cpsOverlay
@@ -152,6 +156,19 @@ public sealed class MainForm : Form
 
         int beepHz = macro.BipHz > 0 ? Math.Clamp(macro.BipHz, 200, 1000) : 200;
 
+        // Converte os arrays de teclas do JS (["Ctrl","F8"]) para a string esperada
+        // pelo ParseHotkey do InputListener ("Ctrl+F8").
+        // Só preenche se shortcuts estiver habilitado e o array não for vazio.
+        string? cpsIncrementHotkey = null;
+        string? cpsDecrementHotkey = null;
+        if (macro.Shortcuts)
+        {
+            if (macro.CpsPlus is { Length: > 0 })
+                cpsIncrementHotkey = string.Join("+", macro.CpsPlus);
+            if (macro.CpsMinus is { Length: > 0 })
+                cpsDecrementHotkey = string.Join("+", macro.CpsMinus);
+        }
+
         return new MacroConfig
         {
             Enabled              = profile.Enabled,
@@ -165,7 +182,9 @@ public sealed class MainForm : Form
             RandomMin            = 0,
             RandomMax            = randomMaxMs,
             BeepEnabled          = macro.Bip,
-            BeepHz               = beepHz
+            BeepHz               = beepHz,
+            CpsIncrementHotkey   = cpsIncrementHotkey,
+            CpsDecrementHotkey   = cpsDecrementHotkey,
         };
     }
 

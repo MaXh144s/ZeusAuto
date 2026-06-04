@@ -258,11 +258,64 @@ function normalizeKey(e) {
   if (e.shiftKey) parts.push('Shift');
   if (e.altKey)   parts.push('Alt');
   if (e.metaKey)  parts.push('Meta');
-  let main = e.key;
-  if (main === ' ') main = 'Space';
-  else if (main.length === 1) main = main.toUpperCase();
+
+  // IMPORTANTE: usar e.code para obter o nome físico da tecla, independente
+  // do modificador Shift. Isso garante que "Shift+=" seja gravado como
+  // ["Shift","="] e não ["Shift","+"], alinhando com o que o hook C#
+  // (NormalizeVirtualKey) reporta — sempre o VK físico da tecla.
+  //
+  // Exemplos:
+  //   Shift+"=" → e.code="Equal"   → "="  (não "+")
+  //   Shift+"-" → e.code="Minus"   → "-"  (não "_")
+  //   Shift+"1" → e.code="Digit1"  → "1"  (não "!")
+  //   Shift+"a" → e.code="KeyA"    → "A"  (e.key já seria "A")
+  let main = physicalKeyName(e);
   parts.push(main);
-  return parts; // ex: ['Ctrl','Shift','A']
+  return parts; // ex: ['Ctrl','Shift','=']
+}
+
+// Retorna o nome físico da tecla (VK equivalente) a partir do evento,
+// independente de Shift/CapsLock. Alinhado com NormalizeVirtualKey do C#.
+function physicalKeyName(e) {
+  const code = e.code || '';
+
+  // Letras: KeyA..KeyZ
+  if (/^Key([A-Z])$/.test(code)) return code.slice(3); // "KeyA" → "A"
+
+  // Dígitos da fila superior: Digit0..Digit9
+  if (/^Digit(\d)$/.test(code)) return code.slice(5);  // "Digit1" → "1"
+
+  // Teclas de função
+  if (/^F(\d+)$/.test(code)) return code; // "F7" → "F7"
+
+  // Numpad
+  if (/^Numpad(\d)$/.test(code)) return 'Num' + code.slice(6); // "Numpad0" → "Num0"
+  const numpadMap = { NumpadAdd:'Num+', NumpadSubtract:'Num-', NumpadMultiply:'Num*',
+                      NumpadDivide:'Num/', NumpadDecimal:'Num.' };
+  if (numpadMap[code]) return numpadMap[code];
+
+  // Pontuação: sempre retorna o nome do VK físico, nunca o char com Shift
+  const codeMap = {
+    Equal:'=', Minus:'-', BracketLeft:'[', BracketRight:']',
+    Backslash:'\\', Semicolon:';', Quote:"'", Backquote:'`',
+    Comma:',', Period:'.', Slash:'/'
+  };
+  if (codeMap[code]) return codeMap[code];
+
+  // Teclas especiais
+  const specialMap = {
+    Space:'Space', Escape:'Escape', Tab:'Tab', Enter:'Enter',
+    Backspace:'Backspace', Delete:'Delete', Insert:'Insert',
+    Home:'Home', End:'End', PageUp:'PageUp', PageDown:'PageDown',
+    ArrowLeft:'ArrowLeft', ArrowUp:'ArrowUp', ArrowRight:'ArrowRight', ArrowDown:'ArrowDown'
+  };
+  if (specialMap[code]) return specialMap[code];
+
+  // Fallback: usar e.key, mas maiusculizar se for 1 char
+  let key = e.key;
+  if (key === ' ') return 'Space';
+  if (key.length === 1) return key.toUpperCase();
+  return key;
 }
 
 function handleMacroShortcutKey(e) {

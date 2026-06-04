@@ -553,8 +553,9 @@ public sealed class MacroEngine : IDisposable
         // Troca atomicamente — o loop pega o novo IntervalMs no próximo ciclo
         Volatile.Write(ref _config, updated);
 
-        // Notifica o EngineSlot para persistir
-        CpsChanged?.Invoke(this, new CpsChangedEventArgs(newCps, newInterval));
+        // Notifica o EngineSlot para persistir e exibir o toast
+        double actualDelta = newCps - currentCps;  // delta real (pode diferir do step por clamping)
+        CpsChanged?.Invoke(this, new CpsChangedEventArgs(newCps, newInterval, direction * step, step));
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

@@ -139,6 +139,18 @@ internal sealed class EngineSlot : IDisposable
     public int? DoubleClickWindowMs => _engine.CurrentConfig.DoubleClickWindowMs;
     public double RealCps           => _tracker.RealCps;
 
+    /// <summary>CPS configurado atual (derivado do IntervalMs da config).</summary>
+    public double ConfigCps =>
+        _engine.CurrentConfig.IntervalMs > 0
+            ? 1000.0 / _engine.CurrentConfig.IntervalMs
+            : 0.0;
+
+    /// <summary>
+    /// Espelha o evento CpsChanged da engine — disparado a cada pressão de
+    /// atalho de ajuste de CPS. Usado pelo MainForm para exibir o toast.
+    /// </summary>
+    public event EventHandler<ZeusAuto.Engine.Core.CpsChangedEventArgs>? CpsChanged;
+
     public EngineSlot(string macroKey, MacroConfig config, ProfileManager? profileManager = null)
     {
         MacroKey = macroKey;
@@ -147,6 +159,9 @@ internal sealed class EngineSlot : IDisposable
         _sim.Clicked += (_, _) => _tracker.RegisterClick();
 
         _engine = new MacroEngine(mouseSimulator: _sim);
+
+        // Repassa CpsChanged para o exterior (MainForm → toast)
+        _engine.CpsChanged += (sender, args) => CpsChanged?.Invoke(sender, args);
 
         // Quando um hotkey de CPS ajusta o intervalo, persiste imediatamente no JSON
         if (profileManager is not null)

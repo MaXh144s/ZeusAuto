@@ -61,6 +61,8 @@ function handleAtalhoKey(e) {
   if (!state.recordingAtalho) return;
   e.preventDefault();
   if (e.key === 'Escape') { toggleAtalhoRecord(state.recordingAtalho); return; }
+  // normalizeKey está definido em macros.js e usa physicalKeyName —
+  // retorna o VK físico da tecla, alinhado com o hook C#.
   const parts = normalizeKey(e);
   if (!parts) return;
   const id = state.recordingAtalho;

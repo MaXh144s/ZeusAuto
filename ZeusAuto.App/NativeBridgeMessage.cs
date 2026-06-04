@@ -80,6 +80,23 @@ internal sealed class WebMacroConfig
     /// <summary>Frequência do bip em Hz (200–1000).</summary>
     [JsonPropertyName("bipHz")]
     public int BipHz { get; set; } = 200;
+
+    /// <summary>
+    /// Teclas do atalho de incremento de CPS (ex: ["Ctrl","F8"]).
+    /// Enviadas pelo JS como array — convertidas para string com "+" no ToMacroConfig.
+    /// </summary>
+    [JsonPropertyName("cpsPlus")]
+    public string[]? CpsPlus { get; set; }
+
+    /// <summary>
+    /// Teclas do atalho de decremento de CPS (ex: ["Ctrl","F9"]).
+    /// </summary>
+    [JsonPropertyName("cpsMinus")]
+    public string[]? CpsMinus { get; set; }
+
+    /// <summary>Liga/desliga os atalhos de CPS.</summary>
+    [JsonPropertyName("shortcuts")]
+    public bool Shortcuts { get; set; }
 }
 
 internal sealed class WebShortcutConfig

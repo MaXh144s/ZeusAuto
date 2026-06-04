@@ -362,12 +362,32 @@ public sealed class InputListener : IInputListener
 
     private static string NormalizeKeyName(string keyName)
     {
+        // Normaliza nomes de modificadores e garante que caracteres produzidos
+        // por Shift (ex: "+" que é Shift+"=") sejam mapeados para o VK físico
+        // equivalente ("="). Isso é necessário porque o JS pode gravar o char
+        // produzido pelo evento, mas o hook recebe sempre o VK físico.
         return keyName.Trim().ToUpperInvariant() switch
         {
             "CONTROL" or "CTRL" or "LCONTROL" or "RCONTROL" => "Ctrl",
             "SHIFT" or "LSHIFT" or "RSHIFT" => "Shift",
             "ALT" or "MENU" or "LMENU" or "RMENU" => "Alt",
             "WIN" or "LWIN" or "RWIN" => "Win",
+            // Caracteres produzidos por Shift → mapeados para o VK físico
+            // que o hook de baixo nível sempre reporta:
+            "+" => "=",   // Shift+"=" → VK 0xBB, hook retorna "="
+            "_" => "-",   // Shift+"-" → VK 0xBD, hook retorna "-"
+            "?" => "/",   // Shift+"/" → VK 0xBF, hook retorna "/"
+            ":" => ";",   // Shift+";" → VK 0xBA, hook retorna ";"
+            "\"" => "'",  // Shift+"'" → VK 0xDE, hook retorna "'"
+            "|" => "\\",  // Shift+"\" → VK 0xDC, hook retorna "\"
+            "~" => "`",   // Shift+"`" → VK 0xC0, hook retorna "`"
+            "{" => "[",   // Shift+"[" → VK 0xDB, hook retorna "["
+            "}" => "]",   // Shift+"]" → VK 0xDD, hook retorna "]"
+            "<" => ",",   // Shift+"," → VK 0xBC, hook retorna ","
+            ">" => ".",   // Shift+"." → VK 0xBE, hook retorna "."
+            // Dígitos com Shift (teclado US)
+            "!" => "1", "@" => "2", "#" => "3", "$" => "4", "%" => "5",
+            "^" => "6", "&" => "7", "*" => "8", "(" => "9", ")" => "0",
             var key when key.Length == 1 => key,
             var key => key
         };
@@ -375,15 +395,39 @@ public sealed class InputListener : IInputListener
 
     private static string? NormalizeVirtualKey(uint virtualKey)
     {
+        // IMPORTANTE: o hook de baixo nível recebe SEMPRE o VK físico da tecla,
+        // independente de modificadores (Shift, Caps Lock, etc.).
+        // Exemplos:
+        //   Shift pressionado → VK 0xA0/0xA1 → "Shift"
+        //   Tecla "=" física (VK 0xBB) → sempre "="  (mesmo com Shift pressionado,
+        //   que no teclado US produziria "+")
+        //   Tecla "-" física (VK 0xBD) → sempre "-"  (mesmo com Shift → "_")
+        //
+        // Por isso, NUNCA mapeamos pelo caractere produzido — sempre pelo VK físico.
+        // O JS (normalizeKey) também deve gravar o VK físico, não o char com Shift.
+        // Isso garante que "Shift+=" funcione como AND: ambas as teclas devem estar
+        // pressionadas simultaneamente, sem que "Shift" sozinho dispare o combo.
         return virtualKey switch
         {
+            // ── Modificadores ────────────────────────────────────────────────
             0xA0 or 0xA1 => "Shift",
             0xA2 or 0xA3 => "Ctrl",
             0xA4 or 0xA5 => "Alt",
             0x5B or 0x5C => "Win",
+            // ── Letras A–Z ───────────────────────────────────────────────────
             >= 0x41 and <= 0x5A => ((char)virtualKey).ToString(),
+            // ── Dígitos 0–9 (fila superior) ──────────────────────────────────
             >= 0x30 and <= 0x39 => ((char)virtualKey).ToString(),
+            // ── Teclas de função F1–F24 ───────────────────────────────────────
             >= 0x70 and <= 0x87 => $"F{virtualKey - 0x6F}",
+            // ── Numpad ───────────────────────────────────────────────────────
+            >= 0x60 and <= 0x69 => $"Num{virtualKey - 0x60}",
+            0x6A => "Num*",
+            0x6B => "Num+",
+            0x6D => "Num-",
+            0x6E => "Num.",
+            0x6F => "Num/",
+            // ── Controles ────────────────────────────────────────────────────
             0x20 => "Space",
             0x1B => "Escape",
             0x09 => "Tab",
@@ -399,14 +443,29 @@ public sealed class InputListener : IInputListener
             0x26 => "ArrowUp",
             0x27 => "ArrowRight",
             0x28 => "ArrowDown",
-            0xDC => "\\",
+            // ── Pontuação / símbolos (VK FÍSICO — não o char produzido com Shift) ──
+            // VK 0xBB = tecla "=" / "+" no US  → sempre "="
+            // VK 0xBD = tecla "-" / "_"         → sempre "-"
+            // VK 0xBC = tecla "," / "<"          → sempre ","
+            // VK 0xBE = tecla "." / ">"          → sempre "."
+            // VK 0xBF = tecla "/" / "?"          → sempre "/"
+            // VK 0xBA = tecla ";" / ":"          → sempre ";"
+            // VK 0xDE = tecla "'" / """          → sempre "'"
+            // VK 0xDC = tecla "\" / "|"          → sempre "\"
+            // VK 0xC0 = tecla "`" / "~"          → sempre "`"
+            // VK 0xDB = tecla "[" / "{"          → sempre "["
+            // VK 0xDD = tecla "]" / "}"          → sempre "]"
+            0xBB => "=",
+            0xBD => "-",
+            0xBC => ",",
+            0xBE => ".",
             0xBF => "/",
             0xBA => ";",
             0xDE => "'",
-            0xBC => ",",
-            0xBE => ".",
-            0xBD => "-",
-            0xBB => "=",
+            0xDC => "\\",
+            0xC0 => "`",
+            0xDB => "[",
+            0xDD => "]",
             _ => null
         };
     }
