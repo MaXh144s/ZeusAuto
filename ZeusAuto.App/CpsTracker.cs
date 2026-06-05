@@ -146,6 +146,13 @@ internal sealed class EngineSlot : IDisposable
             : 0.0;
 
     /// <summary>
+    /// Aplica nova config à engine SEM reiniciá-la nem destruí-la.
+    /// Seguro chamar enquanto a engine está em MacroState.Running.
+    /// Usado pelo MainForm em profile:update para não interromper uma ativação em andamento.
+    /// </summary>
+    public void LoadConfig(MacroConfig config) => _engine.LoadConfig(config);
+
+    /// <summary>
     /// Espelha o evento CpsChanged da engine — disparado a cada pressão de
     /// atalho de ajuste de CPS. Usado pelo MainForm para exibir o toast.
     /// </summary>

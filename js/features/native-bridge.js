@@ -3,6 +3,13 @@
 const ZeusNativeBridge = {
   activeMacro: null,
 
+  // BUG FIX (Causa D): debounce para não enviar profile:update no meio de uma
+  // janela de ativação de double-click. O sync é adiado em DEBOUNCE_MS; se
+  // outro sync chegar antes do timer disparar, o timer é reiniciado (debounce).
+  // Valor deve ser > DoubleClickWindowMs máximo configurável (padrão 200 ms).
+  _syncTimer: null,
+  DEBOUNCE_MS: 350,
+
   isAvailable() {
     return Boolean(window.chrome?.webview);
   },
@@ -26,6 +33,26 @@ const ZeusNativeBridge = {
   sync() {
     if (!this.isAvailable()) return;
 
+    // Cancela timer anterior e agenda novo — debounce protege a janela de ativação
+    if (this._syncTimer !== null) {
+      clearTimeout(this._syncTimer);
+    }
+    this._syncTimer = setTimeout(() => {
+      this._syncTimer = null;
+      window.chrome.webview.postMessage({
+        type: 'profile:update',
+        profile: this.buildProfile()
+      });
+    }, this.DEBOUNCE_MS);
+  },
+
+  // syncImmediate: para casos onde a urgência supera a proteção (ex: inicialização)
+  syncImmediate() {
+    if (!this.isAvailable()) return;
+    if (this._syncTimer !== null) {
+      clearTimeout(this._syncTimer);
+      this._syncTimer = null;
+    }
     window.chrome.webview.postMessage({
       type: 'profile:update',
       profile: this.buildProfile()
@@ -86,10 +113,11 @@ window.ZeusNativeBridgeStatus = function(message, isError) {
 
   window.addEventListener('DOMContentLoaded', () => {
     // Só sincroniza na inicialização se já houver macros salvos
-    // (evita enviar enabled:false e desabilitar a engine prematuramente)
+    // (evita enviar enabled:false e desabilitar a engine prematuramente).
+    // Usa syncImmediate — na inicialização não há janela de ativação em andamento.
     setTimeout(() => {
       if (Object.keys(state.macros).length > 0) {
-        ZeusNativeBridge.sync();
+        ZeusNativeBridge.syncImmediate();
       }
     }, 100);
   });

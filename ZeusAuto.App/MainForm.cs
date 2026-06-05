@@ -124,27 +124,60 @@ public sealed class MainForm : Form
 
     private void ApplyProfile(WebProfile profile)
     {
-        DisposeAllEngines();
+        // BUG FIX (Causa D): não destruir engines em execução durante profile:update.
+        //
+        // Antes: DisposeAllEngines() era chamado incondicionalmente, cancelando
+        // qualquer ativação em andamento (double-click em progresso, loop rodando).
+        // Isso produzia o sintoma "bipa mas não ativa" quando o usuário abria config
+        // ou salvava um macro — o sync do JS chegava no meio da janela de ativação.
+        //
+        // Agora:
+        //   1. Engines existentes recebem apenas LoadConfig (aplica nova config sem parar).
+        //   2. Engines cujo macroKey sumiu do perfil são descartadas.
+        //   3. Engines novas são criadas apenas para macroKeys que não existiam.
+        //   4. Se o perfil ficou desabilitado ou sem macros, dispose tudo normalmente.
 
         bool overlayVisible = profile.Settings?.CpsOverlay ?? false;
-        _overlayVisible = overlayVisible; // BUG FIX: mantém estado sincronizado
+        _overlayVisible = overlayVisible;
 
         if (!profile.Enabled || profile.Macros is null || profile.Macros.Count == 0)
         {
-            // Sem macros ativos — overlay fica vazio e obedece ao flag
+            DisposeAllEngines();
             _overlay.Apply(Array.Empty<EngineSlot>(), overlayVisible);
             return;
         }
 
+        // Índice dos slots existentes por macroKey para diff rápido
+        var existingByKey = _engines.ToDictionary(s => s.MacroKey, s => s);
+        var newKeys       = new HashSet<string>(profile.Macros.Keys);
+
+        // Remove slots cujo botão saiu do perfil
+        var toRemove = _engines.Where(s => !newKeys.Contains(s.MacroKey)).ToList();
+        foreach (var slot in toRemove)
+        {
+            slot.Dispose();
+            _engines.Remove(slot);
+        }
+
+        // Atualiza ou cria slots
         foreach (KeyValuePair<string, WebMacroConfig> entry in profile.Macros)
         {
             MacroConfig config = ToMacroConfig(profile, entry.Key, entry.Value);
-            var slot = new EngineSlot(entry.Key, config);
 
-            _engines.Add(slot);
+            if (existingByKey.TryGetValue(entry.Key, out EngineSlot? existing))
+            {
+                // Engine já existe: aplica nova config sem reiniciar
+                // (LoadConfig é thread-safe — usa Volatile.Write internamente)
+                existing.LoadConfig(config);
+            }
+            else
+            {
+                // Botão novo: cria engine do zero
+                var slot = new EngineSlot(entry.Key, config);
+                _engines.Add(slot);
+            }
         }
 
-        // Passa slots ao overlay; visibilidade determinada pelo settings.cpsOverlay
         _overlay.Apply(_engines.AsReadOnly(), overlayVisible);
     }
 
