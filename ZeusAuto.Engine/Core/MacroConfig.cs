@@ -63,6 +63,24 @@ public sealed class MacroConfig
     /// </summary>
     public double CpsStep { get; set; } = 0.5;
 
+    /// <summary>
+    /// Tempo em ms que a tecla deve ficar pressionada antes de iniciar a repetição
+    /// automática acelerada. Padrão 500 ms.
+    /// </summary>
+    public int CpsHoldThresholdMs { get; set; } = 500;
+
+    /// <summary>
+    /// Intervalo inicial entre repetições automáticas de CPS ao segurar a tecla.
+    /// Padrão 200 ms.
+    /// </summary>
+    public int CpsInitialRepeatIntervalMs { get; set; } = 200;
+
+    /// <summary>
+    /// Intervalo mínimo (mais rápido) entre repetições automáticas de CPS.
+    /// A aceleração progressiva converge para este valor. Padrão 25 ms.
+    /// </summary>
+    public int CpsMinimumRepeatIntervalMs { get; set; } = 25;
+
     // ── Atalhos globais ──────────────────────────────────────────────────────
 
     /// <summary>

@@ -16,6 +16,12 @@ internal sealed class NativeBridgeMessage
     /// </summary>
     [JsonPropertyName("id")]
     public string? Id { get; set; }
+
+    /// <summary>
+    /// Payload de overlay:saveProfile — perfil de customização do overlay a salvar.
+    /// </summary>
+    [JsonPropertyName("overlayProfile")]
+    public OverlayProfileConfig? OverlayProfile { get; set; }
 }
 
 internal sealed class WebProfile
@@ -37,6 +43,9 @@ internal sealed class WebProfile
 
     [JsonPropertyName("settings")]
     public WebSettings? Settings { get; set; }
+
+    [JsonPropertyName("overlayProfile")]
+    public OverlayProfileConfig? OverlayProfile { get; set; }
 }
 
 internal sealed class WebSettings
@@ -113,4 +122,86 @@ internal sealed class WebShortcutConfig
 
     [JsonPropertyName("keys")]
     public string[]? Keys { get; set; }
+}
+// ─── Overlay Profile ───────────────────────────────────────────────────────────
+
+internal sealed class OverlayProfileConfig
+{
+    [JsonPropertyName("profileName")]
+    public string? ProfileName { get; set; }
+
+    [JsonPropertyName("createdAt")]
+    public string? CreatedAt { get; set; }
+
+    [JsonPropertyName("background")]
+    public OverlayBackground? Background { get; set; }
+
+    [JsonPropertyName("border")]
+    public OverlayBorder? Border { get; set; }
+
+    [JsonPropertyName("elements")]
+    public List<OverlayElement>? Elements { get; set; }
+}
+
+internal sealed class OverlayBackground
+{
+    [JsonPropertyName("color")]
+    public string Color { get; set; } = "#12141C";
+
+    [JsonPropertyName("opacity")]
+    public double Opacity { get; set; } = 0.92;
+}
+
+internal sealed class OverlayBorder
+{
+    [JsonPropertyName("color")]
+    public string Color { get; set; } = "#466EFF";
+
+    [JsonPropertyName("glowEnabled")]
+    public bool GlowEnabled { get; set; } = true;
+
+    [JsonPropertyName("glowIntensity")]
+    public int GlowIntensity { get; set; } = 20;
+
+    [JsonPropertyName("glowColor")]
+    public string GlowColor { get; set; } = "#466EFF";
+}
+
+internal sealed class OverlayElement
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("visible")]
+    public bool Visible { get; set; } = true;
+
+    [JsonPropertyName("fontSize")]
+    public double FontSize { get; set; } = 12.0;
+
+    [JsonPropertyName("colorActive")]
+    public string ColorActive { get; set; } = "#3CE18C";
+
+    [JsonPropertyName("colorIdle")]
+    public string ColorIdle { get; set; } = "#78788C";
+
+    [JsonPropertyName("colorPaused")]
+    public string ColorPaused { get; set; } = "#FFA032";
+
+    [JsonPropertyName("responsiveRules")]
+    public List<OverlayResponsiveRule>? ResponsiveRules { get; set; }
+}
+
+internal sealed class OverlayResponsiveRule
+{
+    [JsonPropertyName("widthMin")]  public int WidthMin  { get; set; }
+    [JsonPropertyName("widthMax")]  public int WidthMax  { get; set; }
+    [JsonPropertyName("heightMin")] public int HeightMin { get; set; }
+    [JsonPropertyName("heightMax")] public int HeightMax { get; set; }
+
+    /// <summary>"scaleFont" | "relocate" | "hide"</summary>
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = "scaleFont";
+
+    [JsonPropertyName("newPosition")]
+    public string? NewPosition { get; set; }
 }

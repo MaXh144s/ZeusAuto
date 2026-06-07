@@ -27,6 +27,8 @@ const state = {
   set isOverlayOn(v) { this.settings.cpsOverlay = v; },
   // Estado do bip — C# começa com bip ligado (_bipEnabled = true)
   isBipOn: true,
+  // Perfil de customização do overlay (null = usar defaults hardcoded)
+  overlayProfile: null,
 };
 
 // ============================================================

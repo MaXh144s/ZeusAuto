@@ -31,6 +31,10 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></svg>
       Atalhos
     </div>
+    <div class="nav-item" data-page="overlay" onclick="switchPage('overlay',this)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8M12 3v4"/><circle cx="8" cy="14" r="1.5" fill="currentColor"/><path d="M13 11h4M13 14h3M13 17h2"/></svg>
+      Overlay
+    </div>
   </nav>
   <div class="sidebar-footer">
     <div class="settings-btn" data-page="settings" onclick="switchPage('settings',this)" id="settings-nav">
@@ -330,6 +334,131 @@
     <div class="version-tag">Versão 1.0.0</div>
   </div>
 
+  <!-- ===== OVERLAY ===== -->
+  <div class="content-area page" id="page-overlay">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="page-title">Overlay</div><div class="page-subtitle">CUSTOMIZAR JANELA DE CPS</div></div>
+    </div>
+
+    <div class="ov-layout">
+      <!-- COLUNA ESQUERDA: config -->
+      <div class="ov-panel">
+
+        <!-- Elementos -->
+        <div class="ov-section">
+          <div class="ov-section-title">Elementos</div>
+          <div id="ov-elements-list"></div>
+        </div>
+
+        <!-- Aparência geral -->
+        <div class="ov-section">
+          <div class="ov-section-title">Aparência Geral</div>
+
+          <!-- Background -->
+          <div style="margin-bottom:14px">
+            <div class="ov-label" style="margin-bottom:8px">Cor de fundo</div>
+            <div class="ov-row" style="margin-bottom:8px">
+              <div class="ov-color-pair">
+                <input type="color" class="ov-color-picker" id="ov-bg-color" value="#12141C"
+                       oninput="updateOvBgColor(this.value)">
+                <input type="text" class="ov-hex-input" id="ov-bg-color-hex" value="#12141C" maxlength="7"
+                       oninput="updateOvBgColorHex(this.value)">
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex:1;max-width:200px">
+                <label class="ov-label-sm" style="margin:0;white-space:nowrap">Opacidade</label>
+                <input type="range" style="flex:1" min="0" max="100" id="ov-bg-opacity"
+                       oninput="updateOvBgOpacity(this.value)">
+                <span class="ov-opacity-val" id="ov-bg-opacity-val">92%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Borda -->
+          <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+            <div class="ov-label" style="margin-bottom:8px">Cor da borda</div>
+            <div class="ov-color-pair">
+              <input type="color" class="ov-color-picker" id="ov-border-color" value="#466EFF"
+                     oninput="updateOvBorderColor(this.value)">
+              <input type="text" class="ov-hex-input" id="ov-border-color-hex" value="#466EFF" maxlength="7"
+                     oninput="updateOvBorderColorHex(this.value)">
+            </div>
+          </div>
+
+          <!-- Glow -->
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div class="toggle-row" onclick="toggleOvGlow()" style="margin-bottom:0">
+              <div class="toggle-switch on" id="sw-ov-glow"></div>
+              <span class="toggle-label">Glow da borda</span>
+            </div>
+            <div id="ov-glow-panel" style="margin-top:12px">
+              <div class="ov-row" style="margin-bottom:10px">
+                <label class="ov-label-sm" style="margin:0">Intensidade</label>
+                <div style="display:flex;align-items:center;gap:8px;flex:1;max-width:220px">
+                  <input type="range" style="flex:1" min="2" max="60" id="ov-glow-intensity"
+                         oninput="updateOvGlowIntensity(this.value)">
+                  <span class="ov-opacity-val" id="ov-glow-intensity-val">20</span>
+                </div>
+              </div>
+              <div class="ov-row" style="margin-bottom:0">
+                <label class="ov-label-sm" style="margin:0">Cor do glow</label>
+                <div class="ov-color-pair">
+                  <input type="color" class="ov-color-picker" id="ov-glow-color" value="#466EFF"
+                         oninput="updateOvGlowColor(this.value)">
+                  <input type="text" class="ov-hex-input" id="ov-glow-color-hex" value="#466EFF" maxlength="7"
+                         oninput="updateOvGlowColorHex(this.value)">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Perfis de customização -->
+        <div class="ov-section">
+          <div class="ov-section-title">Perfis de Customização</div>
+
+          <div class="ov-profiles-row">
+            <input type="text" class="num-input" id="ov-save-name" placeholder="Nome do perfil…"
+                   style="flex:1;min-width:140px" maxlength="60">
+            <button class="btn btn-primary btn-sm" onclick="saveOverlayProfile()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Salvar
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="restoreDefaultOverlay()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.43"/></svg>
+              Restaurar padrão
+            </button>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="ov-label-sm" style="margin-bottom:8px">Perfis salvos</div>
+            <div id="ov-saved-profiles-list">
+              <div style="font-size:11px;color:var(--text-muted);padding:4px 0">Carregando…</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /ov-panel -->
+
+      <!-- COLUNA DIREITA: preview -->
+      <div class="ov-preview-col">
+        <div class="ov-preview-box">
+          <div class="ov-preview-title">Preview ao vivo</div>
+          <div class="ov-preview-canvas-wrap">
+            <canvas id="ov-preview-canvas"></canvas>
+          </div>
+          <div class="ov-preview-controls">
+            <button class="btn btn-ghost" style="width:100%;justify-content:center" id="ov-toggle-pause-btn"
+                    onclick="togglePreviewPaused()">
+              ⏸ Simular Pausado
+            </button>
+            <div class="ov-preview-note">SLOT 1: ATIVO (13.5 CPS) · SLOT 2: IDLE</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /ov-layout -->
+  </div>
+
   <!-- MOUSE PANEL (visível em macro/perfis/atalhos) -->
   <div class="mouse-panel" id="mouse-panel">
     <div class="mouse-img-wrap">
@@ -365,6 +494,7 @@
 <script src="js/pages/profiles.js"></script>
 <script src="js/features/import-export.js"></script>
 <script src="js/features/cursor-glow.js"></script>
+<script src="js/pages/overlay-config.js"></script>
 <script src="js/app.js"></script>
 <script src="js/features/native-bridge.js"></script>
 <script>

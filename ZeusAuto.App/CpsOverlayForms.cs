@@ -34,6 +34,72 @@ public sealed class CpsOverlayForm : Form
     private static readonly Color ColName   = Color.FromArgb(240, 242, 255);
     private static readonly Color ColMuted  = Color.FromArgb(140, 145, 165);
 
+    // Perfil de customização recebido do JS (null = usar defaults acima)
+    private OverlayProfileConfig? _overlayProfile = null;
+
+    // ── Aplica perfil de customização ─────────────────────────────────────────
+    internal void ApplyOverlayProfile(OverlayProfileConfig? profile)
+    {
+        if (InvokeRequired) { Invoke(() => ApplyOverlayProfile(profile)); return; }
+        _overlayProfile = profile;
+        ApplyProfileAppearance();
+        Invalidate();
+    }
+
+    private void ApplyProfileAppearance()
+    {
+        if (_overlayProfile?.Background is { } bg)
+        {
+            BackColor = ParseHex(bg.Color, ColBg);
+            Opacity   = Math.Clamp(bg.Opacity, 0.0, 1.0);
+        }
+        else
+        {
+            BackColor = ColBg;
+            Opacity   = 0.92;
+        }
+    }
+
+    // ── Helpers para ler o perfil com fallback para os valores padrão ─────────
+
+    private Color GetBorderColor()  => _overlayProfile?.Border is { } b ? ParseHex(b.Color, ColBorder) : ColBorder;
+    private Color GetGlowColor()    => _overlayProfile?.Border is { } b ? ParseHex(b.GlowColor, ColGlow) : ColGlow;
+    private bool  IsGlowEnabled()   => _overlayProfile?.Border?.GlowEnabled ?? true;
+    private int   GetGlowIntensity()=> _overlayProfile?.Border?.GlowIntensity ?? 20;
+
+    private OverlayElement? GetElement(string id) =>
+        _overlayProfile?.Elements?.FirstOrDefault(e => e.Id == id);
+
+    private bool   IsElementVisible(string id)  => GetElement(id)?.Visible ?? true;
+    private float  GetElementFontSize(string id, float defaultPt) =>
+        (float)(GetElement(id)?.FontSize ?? defaultPt);
+
+    private Color GetElementColorActive(string id, Color fallback) =>
+        ParseHex(GetElement(id)?.ColorActive, fallback);
+    private Color GetElementColorIdle(string id, Color fallback) =>
+        ParseHex(GetElement(id)?.ColorIdle, fallback);
+    private Color GetElementColorPaused(string id, Color fallback) =>
+        ParseHex(GetElement(id)?.ColorPaused, fallback);
+
+    /// <summary>
+    /// Converte string "#RRGGBB" para Color. Retorna fallback em caso de erro.
+    /// </summary>
+    private static Color ParseHex(string? hex, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return fallback;
+        try
+        {
+            hex = hex.TrimStart('#');
+            if (hex.Length == 6)
+                return Color.FromArgb(
+                    Convert.ToInt32(hex[..2], 16),
+                    Convert.ToInt32(hex[2..4], 16),
+                    Convert.ToInt32(hex[4..6], 16));
+        }
+        catch { /* ignora — retorna fallback */ }
+        return fallback;
+    }
+
     // Largura mínima confortável por slot (px). Abaixo disso o conteúdo
     // começa a ficar apertado — usada para calcular o raio do canto também.
     private const int SlotMinW = 140;
@@ -159,56 +225,64 @@ public sealed class CpsOverlayForm : Form
         int count = _slots.Count;
 
         // ── Escala global derivada da altura atual ──────────────────────────
-        // Todas as métricas verticais escalam proporcionalmente a RefH = 110.
         float scale = Height / RefH;
 
-        // Raio dos cantos: escala com a altura, limitado para não ficar enorme
         int cornerR = Math.Clamp((int)(12 * scale), 6, 20);
 
+        // ── Cores do perfil (com fallback para os defaults) ─────────────────
+        Color colBg     = _overlayProfile?.Background is { } bg ? ParseHex(bg.Color, ColBg) : ColBg;
+        Color colBorder = GetBorderColor();
+        Color colGlow   = GetGlowColor();
+
         // Fundo
-        using (var b = new SolidBrush(ColBg))
+        using (var b = new SolidBrush(colBg))
             g.FillPath(b, RoundRect(new Rectangle(0, 0, Width, Height), cornerR));
 
         // Glow
-        using (var p = new Pen(Color.FromArgb(20, ColGlow), 6f))
+        if (IsGlowEnabled())
+        {
+            int glowAlpha = Math.Clamp(GetGlowIntensity(), 5, 80);
+            using var p = new Pen(Color.FromArgb(glowAlpha, colGlow), 6f);
             g.DrawPath(p, RoundRect(new Rectangle(-1, -1, Width + 1, Height + 1), cornerR + 2));
+        }
+        else
+        {
+            // Glow desativado — ainda renderiza uma camada sutil para não parecer cortado
+            using var p = new Pen(Color.FromArgb(8, colGlow), 2f);
+            g.DrawPath(p, RoundRect(new Rectangle(-1, -1, Width + 1, Height + 1), cornerR + 2));
+        }
 
         // Borda
-        using (var p = new Pen(ColBorder, 1.2f))
+        using (var p = new Pen(colBorder, 1.2f))
             g.DrawPath(p, RoundRect(new Rectangle(1, 1, Width - 3, Height - 3), cornerR));
 
         if (count == 0) return;
 
-        // ── Largura de cada slot ────────────────────────────────────────────
-        // MinimumSize já garante Width >= count * SlotMinW, então
-        // Width / count é sempre >= SlotMinW. Mantemos o Math.Max por
-        // segurança defensiva (ex.: durante transição de resize).
         int slotW = Math.Max(SlotMinW, Width / count);
 
-        // ── Tamanhos de fonte derivados de Height ───────────────────────────
-        float fnName   = Math.Max(6f,  8.5f  * scale);
-        float fnCps    = Math.Max(10f, 20f   * scale);
-        float fnFooter = Math.Max(5f,  9.5f  * scale);   // era 7.5 → sobe para 9.5
+        // ── Tamanhos de fonte: lê do perfil com fallback ────────────────────
+        float fnName   = Math.Max(6f,  GetElementFontSize("buttonName", 8.5f)  * scale);
+        float fnCps    = Math.Max(10f, GetElementFontSize("cpsReal",    20f)   * scale);
+        float fnPaused = Math.Max(10f, GetElementFontSize("pausedText", 20f)   * scale);
+        float fnFooter = Math.Max(5f,  GetElementFontSize("cpsCfg",     9.5f)  * scale);
 
         using var fName   = new Font("Segoe UI", fnName,   FontStyle.Bold,    GraphicsUnit.Point);
         using var fCps    = new Font("Segoe UI", fnCps,    FontStyle.Bold,    GraphicsUnit.Point);
+        using var fPaused = new Font("Segoe UI", fnPaused, FontStyle.Bold,    GraphicsUnit.Point);
         using var fFooter = new Font("Segoe UI", fnFooter, FontStyle.Regular, GraphicsUnit.Point);
 
         var sfL = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
         var sfR = new StringFormat { Alignment = StringAlignment.Far,  LineAlignment = StringAlignment.Center };
 
-        // ── Métricas verticais proporcionais ───────────────────────────────
-        int pad      = Math.Max(8,  (int)(14  * scale));   // padding lateral interno
-        int dotSize  = Math.Max(5,  (int)(8   * scale));   // diâmetro do dot
+        int pad      = Math.Max(8,  (int)(14  * scale));
+        int dotSize  = Math.Max(5,  (int)(8   * scale));
         int mid      = Height / 2;
 
-        // Offsets verticais relativos ao centro (mid)
-        float offDot    = -26f * scale;   // dot de status
-        float offName   = -30f * scale;   // label do nome
-        float offCps    = -18f * scale;   // número CPS grande
-        float offFooter =  20f * scale;   // rodapé ms | cfg
+        float offDot    = -26f * scale;
+        float offName   = -30f * scale;
+        float offCps    = -18f * scale;
+        float offFooter =  20f * scale;
 
-        // Alturas das faixas
         float hName    = Math.Max(12f, 18f * scale);
         float hCps     = Math.Max(20f, 36f * scale);
         float hFooter  = Math.Max(10f, 18f * scale);
@@ -217,56 +291,81 @@ public sealed class CpsOverlayForm : Form
         {
             var  slot   = _slots[i];
             bool active = !_paused && slot.State == MacroState.Running;
-            // Pausado → âmbar; ativo → verde; idle → cinza
-            Color col = _paused ? ColPaused : (active ? ColActive : ColIdle);
+
+            // ── Cores dos elementos pelo perfil ─────────────────────────────
+            Color colDot   = _paused
+                ? GetElementColorPaused("statusDot", ColPaused)
+                : (active ? GetElementColorActive("statusDot", ColActive) : GetElementColorIdle("statusDot", ColIdle));
+
+            Color colCps   = _paused
+                ? GetElementColorPaused("cpsReal", ColPaused)
+                : (active ? GetElementColorActive("cpsReal", ColActive) : GetElementColorIdle("cpsReal", ColIdle));
+
+            Color colNameC = _paused
+                ? GetElementColorPaused("buttonName", ColPaused)
+                : (active ? GetElementColorActive("buttonName", ColName) : GetElementColorIdle("buttonName", ColName));
+
+            Color colFooter = _paused
+                ? GetElementColorPaused("cpsCfg", ColPaused)
+                : (active ? GetElementColorActive("cpsCfg", ColMuted) : GetElementColorIdle("cpsCfg", ColMuted));
+
+            Color colPausedC = GetElementColorPaused("pausedText", ColPaused);
 
             int x = i * slotW + pad;
             int w = slotW - pad * 2;
 
-            // Separador vertical entre slots
+            // Separador
             if (i > 0)
-                using (var p = new Pen(Color.FromArgb(40, ColBorder), 1f))
+                using (var p = new Pen(Color.FromArgb(40, colBorder), 1f))
                     g.DrawLine(p, i * slotW, (int)(12 * scale), i * slotW, Height - (int)(12 * scale));
 
             // Dot de status
-            using (var b = new SolidBrush(col))
-                g.FillEllipse(b, x, mid + offDot, dotSize, dotSize);
+            if (IsElementVisible("statusDot"))
+                using (var b = new SolidBrush(colDot))
+                    g.FillEllipse(b, x, mid + offDot, dotSize, dotSize);
 
             // Nome do botão
-            using (var b = new SolidBrush(ColName))
-                g.DrawString(FriendlyName(slot.MacroKey), fName, b,
-                    new RectangleF(x + dotSize + 3, mid + offName, w - dotSize - 3, hName), sfL);
+            if (IsElementVisible("buttonName"))
+                using (var b = new SolidBrush(colNameC))
+                    g.DrawString(FriendlyName(slot.MacroKey), fName, b,
+                        new RectangleF(x + dotSize + 3, mid + offName, w - dotSize - 3, hName), sfL);
 
-            // Linha central: CPS real quando ativo/idle, "PAUSADO" quando pausado
+            // CPS Real ou PAUSADO
             if (_paused)
             {
-                using var b = new SolidBrush(ColPaused);
-                g.DrawString("PAUSADO", fCps, b,
-                    new RectangleF(x, mid + offCps, w, hCps), sfL);
+                if (IsElementVisible("pausedText"))
+                    using (var b = new SolidBrush(colPausedC))
+                        g.DrawString("PAUSADO", fPaused, b,
+                            new RectangleF(x, mid + offCps, w, hCps), sfL);
             }
             else
             {
-                double realCps = active ? Math.Truncate(slot.RealCps * 10.0) / 10.0 : 0.0;
-                using var b = new SolidBrush(col);
-                g.DrawString($"{realCps:F1} CPS", fCps, b,
-                    new RectangleF(x, mid + offCps, w, hCps), sfL);
+                if (IsElementVisible("cpsReal"))
+                {
+                    double realCps = active ? Math.Truncate(slot.RealCps * 10.0) / 10.0 : 0.0;
+                    using var b = new SolidBrush(colCps);
+                    g.DrawString($"{realCps:F1} CPS", fCps, b,
+                        new RectangleF(x, mid + offCps, w, hCps), sfL);
+                }
             }
 
-            // Rodapé: "200 ms  |  13.0 cfg"
+            // Rodapé
             string msText  = slot.DoubleClickWindowMs.HasValue
                 ? $"{slot.DoubleClickWindowMs} ms"
                 : "-- ms";
             string cfgText = $"{slot.ConfigCps:F1} CPS";
 
-            using (var b = new SolidBrush(ColMuted))
+            using (var b = new SolidBrush(colFooter))
             {
-                g.DrawString(msText,  fFooter, b, new RectangleF(x,         mid + offFooter, w, hFooter), sfL);
-                g.DrawString(cfgText, fFooter, b, new RectangleF(x,         mid + offFooter, w, hFooter), sfR);
+                if (IsElementVisible("doubleClick"))
+                    g.DrawString(msText,  fFooter, b, new RectangleF(x, mid + offFooter, w, hFooter), sfL);
+                if (IsElementVisible("cpsCfg"))
+                    g.DrawString(cfgText, fFooter, b, new RectangleF(x, mid + offFooter, w, hFooter), sfR);
             }
         }
 
-        // Gripper visual (sempre no canto inferior direito)
-        using var rp = new Pen(Color.FromArgb(90, ColBorder), 1f);
+        // Gripper visual
+        using var rp = new Pen(Color.FromArgb(90, colBorder), 1f);
         g.DrawLine(rp, Width - 16, Height - 6,  Width - 6, Height - 16);
         g.DrawLine(rp, Width - 22, Height - 6,  Width - 6, Height - 22);
         g.DrawLine(rp, Width - 28, Height - 6,  Width - 6, Height - 28);

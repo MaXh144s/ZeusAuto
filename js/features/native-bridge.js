@@ -26,7 +26,8 @@ const ZeusNativeBridge = {
       activeMacro: this.activeMacro,
       macros: state.macros,
       atalhos: state.atalhos,
-      settings: state.settings
+      settings: state.settings,
+      overlayProfile: state.overlayProfile || null
     };
   },
 
@@ -77,6 +78,24 @@ const ZeusNativeBridge = {
   triggerAction(id) {
     if (!this.isAvailable()) return;
     window.chrome.webview.postMessage({ type: 'action:trigger', id });
+  },
+
+  // Salva um perfil de overlay no diretório gerenciado pelo C#
+  saveOverlayProfile(profile) {
+    if (!this.isAvailable()) return;
+    window.chrome.webview.postMessage({ type: 'overlay:saveProfile', profile });
+  },
+
+  // Solicita a lista de perfis de overlay salvos (C# responde via ZeusOverlayProfiles)
+  listOverlayProfiles() {
+    if (!this.isAvailable()) return;
+    window.chrome.webview.postMessage({ type: 'overlay:listProfiles' });
+  },
+
+  // Aplica o perfil de overlay ao estado e sincroniza com C#
+  applyOverlayProfile(profile) {
+    state.overlayProfile = profile;
+    this.sync();
   }
 };
 

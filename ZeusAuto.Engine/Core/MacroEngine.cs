@@ -124,6 +124,22 @@ public sealed class MacroEngine : IDisposable
     // ── Random por instância: sem contenção com Random.Shared ────────────────
     private readonly Random _rng = new();
 
+    // ── Estado de aceleração CPS ──────────────────────────────────────────────
+    // Protegido por _cpsAccelLock — acessado apenas fora do hot path do loop.
+    private readonly object _cpsAccelLock    = new();
+    private System.Threading.Timer? _cpsHoldTimer;    // timer de hold threshold
+    private System.Threading.Timer? _cpsRepeatTimer;  // timer de repetição acelerada
+    private int    _cpsRepeatDirection;   // +1 ou -1 da tecla atualmente pressionada
+    private int    _cpsCurrentRepeatIntervalMs; // intervalo atual (diminui progressivamente)
+    private bool   _cpsKeyHeld;           // true enquanto a tecla estiver pressionada
+
+    // Acumulador de CPS em double — evita perda de precisão pelo arredondamento
+    // de IntervalMs. Ex: 32.0 + 0.5 = 32.5, mesmo que round(1000/32.0)=31 ms
+    // e round(1000/32.5)=31 ms também, o acumulador avança corretamente.
+    // Protegido por _cpsAccelLock.
+    // double.NaN = não inicializado (usa IntervalMs da config como base na 1ª chamada).
+    private double _cpsAccumulated = double.NaN;
+
     // ─────────────────────────────────────────────────────────────────────────
     public MacroEngine(
         IInputListener?   inputListener  = null,
@@ -142,6 +158,8 @@ public sealed class MacroEngine : IDisposable
         _inputListener.StopHotkeyPressed   += OnStopHotkeyPressed;
         _inputListener.CpsIncrementPressed += OnCpsIncrementPressed;
         _inputListener.CpsDecrementPressed += OnCpsDecrementPressed;
+        _inputListener.CpsIncrementReleased += OnCpsIncrementReleased;
+        _inputListener.CpsDecrementReleased += OnCpsDecrementReleased;
 
         if (_profileManager is not null)
             _profileManager.ProfileChanged += OnProfileChanged;
@@ -327,12 +345,15 @@ public sealed class MacroEngine : IDisposable
     {
         if (_disposed) return;
         StopListening();
-        _inputListener.InputDown           -= OnInputDown;
-        _inputListener.InputUp             -= OnInputUp;
-        _inputListener.StartHotkeyPressed  -= OnStartHotkeyPressed;
-        _inputListener.StopHotkeyPressed   -= OnStopHotkeyPressed;
-        _inputListener.CpsIncrementPressed -= OnCpsIncrementPressed;
-        _inputListener.CpsDecrementPressed -= OnCpsDecrementPressed;
+        _inputListener.InputDown            -= OnInputDown;
+        _inputListener.InputUp              -= OnInputUp;
+        _inputListener.StartHotkeyPressed   -= OnStartHotkeyPressed;
+        _inputListener.StopHotkeyPressed    -= OnStopHotkeyPressed;
+        _inputListener.CpsIncrementPressed  -= OnCpsIncrementPressed;
+        _inputListener.CpsDecrementPressed  -= OnCpsDecrementPressed;
+        _inputListener.CpsIncrementReleased -= OnCpsIncrementReleased;
+        _inputListener.CpsDecrementReleased -= OnCpsDecrementReleased;
+        lock (_cpsAccelLock) { _cpsKeyHeld = false; StopCpsTimers(); }
         _inputListener.Dispose();
         if (_profileManager is not null)
             _profileManager.ProfileChanged -= OnProfileChanged;
@@ -552,6 +573,9 @@ public sealed class MacroEngine : IDisposable
 
         lock (_sync) { _firstClickReleasedAt = null; }
 
+        // Reseta o acumulador de CPS para forçar releitura do IntervalMs da nova config
+        lock (_cpsAccelLock) { _cpsAccumulated = double.NaN; }
+
         _inputListener.UpdateConfig(config);
 
         if (!config.Enabled) StopLoop();
@@ -591,13 +615,129 @@ public sealed class MacroEngine : IDisposable
     private void OnStartHotkeyPressed(object? _, EventArgs __) => EnableMonitoring();
     private void OnStopHotkeyPressed(object? _, EventArgs __)  => DisableMonitoring();
     private void OnProfileChanged(object? _, ProfileChangedEventArgs e) => ApplyConfig(e.Config);
-    private void OnCpsIncrementPressed(object? _, EventArgs __) => AdjustCps(+1);
-    private void OnCpsDecrementPressed(object? _, EventArgs __) => AdjustCps(-1);
+
+    private void OnCpsIncrementPressed(object? _, EventArgs __) => BeginCpsPress(+1);
+    private void OnCpsDecrementPressed(object? _, EventArgs __) => BeginCpsPress(-1);
+    private void OnCpsIncrementReleased(object? _, EventArgs __) => EndCpsPress(+1);
+    private void OnCpsDecrementReleased(object? _, EventArgs __) => EndCpsPress(-1);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Sistema de aceleração CPS
+    //
+    //  Comportamento:
+    //    - Pressionar e soltar rápido → ajuste único de ±CpsStep CPS
+    //    - Segurar ≥ CpsHoldThresholdMs → inicia repetição a CpsInitialRepeatIntervalMs
+    //    - Cada repetição reduz o intervalo progressivamente até CpsMinimumRepeatIntervalMs
+    //    - Soltar a tecla → para tudo e reseta o estado
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Chamado no primeiro KeyDown do hotkey CPS (latch garante que só dispara uma vez por press).
+    /// Realiza o ajuste imediato e agenda o timer de hold.
+    /// </summary>
+    private void BeginCpsPress(int direction)
+    {
+        lock (_cpsAccelLock)
+        {
+            // Cancela estado anterior (segurança contra eventos fora de ordem)
+            StopCpsTimers();
+
+            _cpsKeyHeld        = true;
+            _cpsRepeatDirection = direction;
+
+            MacroConfig cfg = Volatile.Read(ref _config);
+            _cpsCurrentRepeatIntervalMs = cfg.CpsInitialRepeatIntervalMs > 0
+                ? cfg.CpsInitialRepeatIntervalMs : 200;
+        }
+
+        // Ajuste imediato ao pressionar
+        AdjustCps(direction);
+
+        // Agenda o timer de hold threshold
+        MacroConfig current = Volatile.Read(ref _config);
+        int holdMs = current.CpsHoldThresholdMs > 0 ? current.CpsHoldThresholdMs : 500;
+
+        lock (_cpsAccelLock)
+        {
+            if (!_cpsKeyHeld) return; // tecla solta antes do timer iniciar
+            _cpsHoldTimer = new System.Threading.Timer(_ => OnCpsHoldThresholdReached(), null, holdMs, Timeout.Infinite);
+        }
+    }
+
+    /// <summary>Chamado quando o hold threshold expira — inicia a repetição acelerada.</summary>
+    private void OnCpsHoldThresholdReached()
+    {
+        int intervalMs;
+        int direction;
+
+        lock (_cpsAccelLock)
+        {
+            if (!_cpsKeyHeld) return;
+            intervalMs = _cpsCurrentRepeatIntervalMs;
+            direction  = _cpsRepeatDirection;
+
+            // Agenda a primeira repetição
+            _cpsRepeatTimer = new System.Threading.Timer(_ => OnCpsRepeatTick(), null, intervalMs, Timeout.Infinite);
+        }
+    }
+
+    /// <summary>
+    /// Tick de repetição acelerada.
+    /// Realiza um ajuste, diminui o intervalo progressivamente e reagenda.
+    /// </summary>
+    private void OnCpsRepeatTick()
+    {
+        int nextIntervalMs;
+        int direction;
+
+        lock (_cpsAccelLock)
+        {
+            if (!_cpsKeyHeld) return;
+            direction = _cpsRepeatDirection;
+
+            MacroConfig cfg = Volatile.Read(ref _config);
+            int minInterval = cfg.CpsMinimumRepeatIntervalMs > 0 ? cfg.CpsMinimumRepeatIntervalMs : 25;
+
+            // Redução progressiva: diminui 20% por tick, convergindo para o mínimo
+            int reduced = (int)(_cpsCurrentRepeatIntervalMs * 0.80);
+            _cpsCurrentRepeatIntervalMs = Math.Max(minInterval, reduced);
+            nextIntervalMs = _cpsCurrentRepeatIntervalMs;
+
+            // Reagenda antes de ajustar (se AdjustCps demorar, o próximo tick já está agendado)
+            _cpsRepeatTimer?.Dispose();
+            _cpsRepeatTimer = new System.Threading.Timer(_ => OnCpsRepeatTick(), null, nextIntervalMs, Timeout.Infinite);
+        }
+
+        AdjustCps(direction);
+    }
+
+    /// <summary>Chamado no KeyUp de qualquer tecla do hotkey CPS — para tudo.</summary>
+    private void EndCpsPress(int direction)
+    {
+        lock (_cpsAccelLock)
+        {
+            // Só reseta se a direção bate (evita que release de inc afete dec e vice-versa)
+            if (_cpsRepeatDirection != direction && _cpsKeyHeld) return;
+            _cpsKeyHeld = false;
+            StopCpsTimers();
+        }
+    }
+
+    /// <summary>Cancela ambos os timers de aceleração CPS. Deve ser chamado com _cpsAccelLock.</summary>
+    private void StopCpsTimers()
+    {
+        _cpsHoldTimer?.Dispose();
+        _cpsHoldTimer = null;
+        _cpsRepeatTimer?.Dispose();
+        _cpsRepeatTimer = null;
+    }
 
     /// <summary>
     /// Ajusta o CPS em <c>direction * CpsStep</c> passos, clampado entre 1–50 CPS.
-    /// Recalcula IntervalMs, troca a config atomicamente e dispara <see cref="CpsChanged"/>
-    /// para que o chamador possa persistir o novo valor no JSON.
+    /// Usa um acumulador em double para evitar a perda de precisão causada pelo
+    /// arredondamento de IntervalMs (ex: 32.0 + 0.5 → 32.5, mesmo que ambos
+    /// arredondem para o mesmo IntervalMs de 31 ms).
+    /// Recalcula IntervalMs, troca a config atomicamente e dispara <see cref="CpsChanged"/>.
     /// </summary>
     /// <param name="direction">+1 para incremento, -1 para decremento.</param>
     private void AdjustCps(int direction)
@@ -605,15 +745,23 @@ public sealed class MacroEngine : IDisposable
         MacroConfig current = Volatile.Read(ref _config);
         double step = current.CpsStep > 0 ? current.CpsStep : 0.5;
 
-        // Calcula o CPS atual a partir do IntervalMs
-        double currentCps = current.IntervalMs > 0
-            ? 1000.0 / current.IntervalMs
-            : 10.0;
+        // Inicializa o acumulador a partir do IntervalMs atual se ainda não foi usado.
+        // A partir daí, os steps se acumulam no double sem arredondamento.
+        double baseCps;
+        lock (_cpsAccelLock)
+        {
+            if (double.IsNaN(_cpsAccumulated))
+            {
+                _cpsAccumulated = current.IntervalMs > 0
+                    ? 1000.0 / current.IntervalMs
+                    : 10.0;
+            }
+            _cpsAccumulated = Math.Clamp(_cpsAccumulated + direction * step, CpsMin, CpsMax);
+            baseCps = _cpsAccumulated;
+        }
 
-        // Aplica o step e clampa nos limites
-        double newCps      = Math.Clamp(currentCps + direction * step, CpsMin, CpsMax);
-        int    newInterval = (int)Math.Round(1000.0 / newCps);
-        newInterval        = Math.Max(1, newInterval);
+        int newInterval = (int)Math.Round(1000.0 / baseCps);
+        newInterval     = Math.Max(1, newInterval);
 
         // Cria nova config com IntervalMs atualizado; preserva todos os outros campos
         MacroConfig updated = new()
@@ -637,6 +785,9 @@ public sealed class MacroEngine : IDisposable
             CpsIncrementHotkey   = current.CpsIncrementHotkey,
             CpsDecrementHotkey   = current.CpsDecrementHotkey,
             CpsStep              = current.CpsStep,
+            CpsHoldThresholdMs        = current.CpsHoldThresholdMs,
+            CpsInitialRepeatIntervalMs = current.CpsInitialRepeatIntervalMs,
+            CpsMinimumRepeatIntervalMs = current.CpsMinimumRepeatIntervalMs,
             ExtraOptions         = current.ExtraOptions
         };
 
@@ -644,8 +795,7 @@ public sealed class MacroEngine : IDisposable
         Volatile.Write(ref _config, updated);
 
         // Notifica o EngineSlot para persistir e exibir o toast
-        double actualDelta = newCps - currentCps;  // delta real (pode diferir do step por clamping)
-        CpsChanged?.Invoke(this, new CpsChangedEventArgs(newCps, newInterval, direction * step, step));
+        CpsChanged?.Invoke(this, new CpsChangedEventArgs(baseCps, newInterval, direction * step, step));
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

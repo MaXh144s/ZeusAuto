@@ -158,8 +158,22 @@ public sealed class MainForm : Form
                 return;
             }
 
-            // Ação direta disparada pelo botão ▶ na página Atalhos —
-            // executa o mesmo código dos handlers de hotkey físico.
+            // ── Salvar perfil de overlay ──────────────────────────────────────
+            if (string.Equals(message.Type, "overlay:saveProfile", StringComparison.OrdinalIgnoreCase))
+            {
+                if (message.OverlayProfile is not null)
+                    SaveOverlayProfile(message.OverlayProfile);
+                return;
+            }
+
+            // ── Listar perfis de overlay salvos ───────────────────────────────
+            if (string.Equals(message.Type, "overlay:listProfiles", StringComparison.OrdinalIgnoreCase))
+            {
+                PostOverlayProfilesList();
+                return;
+            }
+
+            // Ação direta disparada pelo botão ▶ na página Atalhos
             if (string.Equals(message.Type, "action:trigger", StringComparison.OrdinalIgnoreCase))
             {
                 switch (message.Id?.ToLowerInvariant())
@@ -294,6 +308,76 @@ public sealed class MainForm : Form
         _overlay.Apply(_engines.AsReadOnly(), overlayVisible);
         // Reaplicar estado de pausa no overlay após sincronização de perfil
         _overlay.ApplyPaused(_paused);
+        // Aplicar perfil de customização do overlay (null = fallback para defaults)
+        _overlay.ApplyOverlayProfile(profile.OverlayProfile);
+    }
+
+    // ── Overlay Profile: salvar/listar ────────────────────────────────────────
+
+    private static string GetOverlayProfilesDir()
+    {
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string dir = !string.IsNullOrEmpty(appData)
+            ? Path.Combine(appData, "ZeusAuto", "overlay-profiles")
+            : Path.Combine(AppContext.BaseDirectory, "overlay-profiles");
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    private void SaveOverlayProfile(OverlayProfileConfig profile)
+    {
+        try
+        {
+            string name = SanitizeFileName(profile.ProfileName ?? "perfil");
+            if (string.IsNullOrWhiteSpace(name)) name = "perfil";
+            string dir  = GetOverlayProfilesDir();
+            string path = Path.Combine(dir, name + ".json");
+            string json = JsonSerializer.Serialize(profile, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(path, json, System.Text.Encoding.UTF8);
+            PostOverlayProfilesList();
+        }
+        catch (Exception ex)
+        {
+            PostNativeStatus($"Erro ao salvar perfil de overlay: {ex.Message}", isError: true);
+        }
+    }
+
+    private void PostOverlayProfilesList()
+    {
+        try
+        {
+            string dir = GetOverlayProfilesDir();
+            var profiles = new List<OverlayProfileConfig>();
+            foreach (string file in Directory.GetFiles(dir, "*.json").OrderBy(f => f))
+            {
+                try
+                {
+                    string json = File.ReadAllText(file, System.Text.Encoding.UTF8);
+                    var p = JsonSerializer.Deserialize<OverlayProfileConfig>(json, _jsonOptions);
+                    if (p is not null)
+                    {
+                        if (string.IsNullOrWhiteSpace(p.ProfileName))
+                            p.ProfileName = Path.GetFileNameWithoutExtension(file);
+                        profiles.Add(p);
+                    }
+                }
+                catch { /* arquivo corrompido — ignora */ }
+            }
+
+            string payload = JsonSerializer.Serialize(profiles);
+            string script  = $"window.ZeusOverlayProfiles?.({payload});";
+            _webView.CoreWebView2?.ExecuteScriptAsync(script);
+        }
+        catch (Exception ex)
+        {
+            PostNativeStatus($"Erro ao listar perfis de overlay: {ex.Message}", isError: true);
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return new string(name.Where(c => !invalid.Contains(c)).ToArray()).Trim();
     }
 
     /// <summary>

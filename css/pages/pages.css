@@ -68,3 +68,278 @@
 .geral-card-value{font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)}
 .geral-card.has-cfg .geral-card-value{color:var(--accent-2)}
 .geral-card-action{font-size:11px;color:var(--accent);margin-top:6px;text-decoration:underline}
+
+
+/* ── OVERLAY CONFIG PAGE ───────────────────────────────────── */
+.ov-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 18px;
+  align-items: start;
+}
+.ov-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ov-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.ov-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.ov-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ov-row:last-child { margin-bottom: 0; }
+.ov-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ov-label-sm {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: block;
+  margin-bottom: 4px;
+}
+.ov-font-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.ov-color-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ov-color-picker {
+  width: 32px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  padding: 2px;
+  cursor: pointer;
+}
+.ov-hex-input {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  width: 72px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 4px 7px;
+  outline: none;
+}
+.ov-hex-input:focus { border-color: var(--accent); }
+
+.ov-colors-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.ov-color-group { min-width: 0; }
+
+/* Elemento cards */
+.ov-element-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  transition: border-color var(--transition);
+}
+.ov-element-card:last-child { margin-bottom: 0; }
+.ov-element-card:hover { border-color: rgba(79,156,249,.2); }
+.ov-element-hidden { opacity: 0.45; }
+.ov-element-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+.ov-element-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ov-element-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.ov-element-body {
+  margin-top: 12px;
+}
+
+/* Regras responsivas */
+.ov-rules-panel {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.ov-rules-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ov-rules-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.ov-rule-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.ov-rule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ov-rule-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.ov-rule-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ov-rule-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ov-new-pos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Preview coluna direita */
+.ov-preview-col {
+  position: sticky;
+  top: 0;
+}
+.ov-preview-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.ov-preview-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+.ov-preview-canvas-wrap {
+  background: #060810;
+  border-radius: 10px;
+  padding: 18px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+#ov-preview-canvas {
+  width: 100%;
+  max-width: 280px;
+  height: 100px;
+  border-radius: 8px;
+}
+.ov-preview-controls {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ov-preview-note {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: .5px;
+}
+
+/* Perfis de overlay */
+.ov-profiles-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.ov-profile-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.ov-profile-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.btn-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.btn-xs {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+
+/* Opacity slider para bg */
+.ov-opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ov-opacity-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: right;
+}

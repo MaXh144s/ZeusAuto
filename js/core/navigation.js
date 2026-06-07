@@ -8,12 +8,16 @@ function switchPage(pageId, navEl) {
 
   const panel = document.getElementById('mouse-panel');
   // Show mouse panel only on macro, perfis, atalhos
-  panel.style.display = (pageId === 'geral' || pageId === 'settings') ? 'none' : 'flex';
+  const hiddenPages = ['geral', 'settings', 'overlay'];
+  panel.style.display = hiddenPages.includes(pageId) ? 'none' : 'flex';
 
   if (pageId === 'macro') { renderMacroList(); renderMouseLegend(); }
   if (pageId === 'perfis') { renderProfiles(); renderMouseLegend(); }
   if (pageId === 'atalhos') { renderAtalhos(); renderMouseLegend(); }
   if (pageId === 'geral') renderGeralGrid();
+  if (pageId === 'overlay') {
+    if (typeof initOverlayConfig === 'function') initOverlayConfig();
+  }
 }
 
 // ============================================================

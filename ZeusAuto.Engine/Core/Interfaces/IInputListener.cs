@@ -13,8 +13,14 @@ public interface IInputListener : IDisposable
     /// <summary>Disparado quando o hotkey de incremento de CPS é pressionado.</summary>
     event EventHandler? CpsIncrementPressed;
 
+    /// <summary>Disparado quando o hotkey de incremento de CPS é solto.</summary>
+    event EventHandler? CpsIncrementReleased;
+
     /// <summary>Disparado quando o hotkey de decremento de CPS é pressionado.</summary>
     event EventHandler? CpsDecrementPressed;
+
+    /// <summary>Disparado quando o hotkey de decremento de CPS é solto.</summary>
+    event EventHandler? CpsDecrementReleased;
 
     /// <summary>Disparado quando o hotkey global de pausa é pressionado.</summary>
     event EventHandler? PauseHotkeyPressed;

@@ -69,7 +69,11 @@ public sealed class InputListener : IInputListener
 
     public event EventHandler? CpsIncrementPressed;
 
+    public event EventHandler? CpsIncrementReleased;
+
     public event EventHandler? CpsDecrementPressed;
+
+    public event EventHandler? CpsDecrementReleased;
 
     public event EventHandler? PauseHotkeyPressed;
 
@@ -208,6 +212,13 @@ public sealed class InputListener : IInputListener
                         _bipHotkeyLatched        = IsHotkeyPart(keyName, _bipHotkey)          && _bipHotkeyLatched        && IsHotkeyPressed(_bipHotkey);
                         _encerrarHotkeyLatched   = IsHotkeyPart(keyName, _encerrarHotkey)     && _encerrarHotkeyLatched   && IsHotkeyPressed(_encerrarHotkey);
                     }
+
+                    // Dispara release de CPS quando uma tecla do hotkey é solta
+                    // (independente de qual tecla do combo foi a última liberada)
+                    if (IsHotkeyPart(keyName, _cpsIncrementHotkey))
+                        CpsIncrementReleased?.Invoke(this, EventArgs.Empty);
+                    if (IsHotkeyPart(keyName, _cpsDecrementHotkey))
+                        CpsDecrementReleased?.Invoke(this, EventArgs.Empty);
 
                     InputUp?.Invoke(this, new InputEventArgs(keyName));
                 }
