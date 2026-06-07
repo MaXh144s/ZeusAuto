@@ -16,6 +16,18 @@ public interface IInputListener : IDisposable
     /// <summary>Disparado quando o hotkey de decremento de CPS é pressionado.</summary>
     event EventHandler? CpsDecrementPressed;
 
+    /// <summary>Disparado quando o hotkey global de pausa é pressionado.</summary>
+    event EventHandler? PauseHotkeyPressed;
+
+    /// <summary>Disparado quando o hotkey global de overlay CPS é pressionado.</summary>
+    event EventHandler? OverlayHotkeyPressed;
+
+    /// <summary>Disparado quando o hotkey global de bip toggle é pressionado.</summary>
+    event EventHandler? BipHotkeyPressed;
+
+    /// <summary>Disparado quando o hotkey global de encerrar programa é pressionado.</summary>
+    event EventHandler? EncerrarHotkeyPressed;
+
     void StartListening();
 
     void StopListening();

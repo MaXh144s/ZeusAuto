@@ -69,6 +69,14 @@ const ZeusNativeBridge = {
   toggleOverlay() {
     if (!this.isAvailable()) return;
     window.chrome.webview.postMessage({ type: 'overlay:toggle' });
+  },
+
+  // Dispara uma ação de atalho global diretamente da UI, sem precisar da
+  // tecla física. Usado pelo botão ▶ ao lado de cada atalho na página Atalhos.
+  // Os ids válidos são: 'pausar', 'cpsOverlay', 'bipToggle', 'encerrar'.
+  triggerAction(id) {
+    if (!this.isAvailable()) return;
+    window.chrome.webview.postMessage({ type: 'action:trigger', id });
   }
 };
 
@@ -76,6 +84,16 @@ window.ZeusNativeBridgeStatus = function(message, isError) {
   if (typeof showToast === 'function') {
     showToast(message, isError ? 'error' : 'success');
   }
+};
+
+// Chamado pelo C# (PostToggleState) sempre que um atalho toggle é acionado via
+// tecla física. Atualiza o estado local e re-renderiza a página Atalhos para
+// que o ícone ▶/⏸ reflita o novo estado sem precisar do botão na interface.
+window.ZeusToggleState = function(id, active) {
+  if (id === 'pausar')     state.isPaused    = active;
+  if (id === 'cpsOverlay') state.isOverlayOn = active;
+  if (id === 'bipToggle')  state.isBipOn     = active;
+  if (typeof renderAtalhos === 'function') renderAtalhos();
 };
 
 (function installNativeBridgeHooks() {

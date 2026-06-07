@@ -19,6 +19,14 @@ const state = {
   // Atalho recording per id
   recordingAtalho: null,
   atalhoKeys: {},      // temp keys being recorded
+  // Estado de pausa refletido localmente para atualizar ícone do botão pausar
+  isPaused: false,
+  // isOverlayOn: getter que lê diretamente de settings.cpsOverlay — nunca dessincroniza
+  // com o toggle da página Settings que também altera settings.cpsOverlay.
+  get isOverlayOn() { return this.settings.cpsOverlay; },
+  set isOverlayOn(v) { this.settings.cpsOverlay = v; },
+  // Estado do bip — C# começa com bip ligado (_bipEnabled = true)
+  isBipOn: true,
 };
 
 // ============================================================

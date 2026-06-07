@@ -44,6 +44,10 @@ public sealed class CpsOverlayForm : Form
 
     private IReadOnlyList<EngineSlot> _slots     = Array.Empty<EngineSlot>();
     private bool                      _forceHide = false;
+    private bool                      _paused    = false;
+
+    // Cor "pausado" — laranja-âmbar vibrante, legível sobre o fundo escuro
+    private static readonly Color ColPaused = Color.FromArgb(255, 160, 50);
 
     private readonly Panel _gripper;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 100 };
@@ -133,6 +137,17 @@ public sealed class CpsOverlayForm : Form
         if (visible) Show(); else Hide();
     }
 
+    /// <summary>
+    /// Atualiza o estado de pausa. Quando pausado, o overlay continua visível
+    /// mas substitui o CPS por "PAUSADO" em laranja-âmbar.
+    /// </summary>
+    public void ApplyPaused(bool paused)
+    {
+        if (InvokeRequired) { Invoke(() => ApplyPaused(paused)); return; }
+        _paused = paused;
+        if (Visible) Invalidate();
+    }
+
     // ── Pintura responsiva ────────────────────────────────────────────────────
 
     protected override void OnPaint(PaintEventArgs e)
@@ -201,8 +216,9 @@ public sealed class CpsOverlayForm : Form
         for (int i = 0; i < count; i++)
         {
             var  slot   = _slots[i];
-            bool active = slot.State == MacroState.Running;
-            Color col   = active ? ColActive : ColIdle;
+            bool active = !_paused && slot.State == MacroState.Running;
+            // Pausado → âmbar; ativo → verde; idle → cinza
+            Color col = _paused ? ColPaused : (active ? ColActive : ColIdle);
 
             int x = i * slotW + pad;
             int w = slotW - pad * 2;
@@ -221,16 +237,22 @@ public sealed class CpsOverlayForm : Form
                 g.DrawString(FriendlyName(slot.MacroKey), fName, b,
                     new RectangleF(x + dotSize + 3, mid + offName, w - dotSize - 3, hName), sfL);
 
-            // CPS real (fonte grande, centro)
-            double realCps = active ? Math.Truncate(slot.RealCps * 10.0) / 10.0 : 0.0;
-            using (var b = new SolidBrush(col))
+            // Linha central: CPS real quando ativo/idle, "PAUSADO" quando pausado
+            if (_paused)
+            {
+                using var b = new SolidBrush(ColPaused);
+                g.DrawString("PAUSADO", fCps, b,
+                    new RectangleF(x, mid + offCps, w, hCps), sfL);
+            }
+            else
+            {
+                double realCps = active ? Math.Truncate(slot.RealCps * 10.0) / 10.0 : 0.0;
+                using var b = new SolidBrush(col);
                 g.DrawString($"{realCps:F1} CPS", fCps, b,
                     new RectangleF(x, mid + offCps, w, hCps), sfL);
+            }
 
             // Rodapé: "200 ms  |  13.0 cfg"
-            // Ambos os textos ficam dentro do rect do slot (x … x+w),
-            // garantindo que o cfgText alinhado à direita não ultrapasse
-            // a borda do slot nem sobreponha o slot vizinho.
             string msText  = slot.DoubleClickWindowMs.HasValue
                 ? $"{slot.DoubleClickWindowMs} ms"
                 : "-- ms";

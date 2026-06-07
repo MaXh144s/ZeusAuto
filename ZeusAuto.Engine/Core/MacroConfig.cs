@@ -63,6 +63,29 @@ public sealed class MacroConfig
     /// </summary>
     public double CpsStep { get; set; } = 0.5;
 
+    // ── Atalhos globais ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Hotkey global para pausar/despausar todos os macros.
+    /// Formato idêntico ao StartHotkey: "F7", "Ctrl+Shift+\\", etc.
+    /// </summary>
+    public string? PauseHotkey { get; set; }
+
+    /// <summary>
+    /// Hotkey global para alternar a visibilidade da janela CPS overlay.
+    /// </summary>
+    public string? OverlayHotkey { get; set; }
+
+    /// <summary>
+    /// Hotkey global para ligar/desligar o bip sonoro de todos os macros.
+    /// </summary>
+    public string? BipToggleHotkey { get; set; }
+
+    /// <summary>
+    /// Hotkey global para encerrar o programa (exibe confirmação antes).
+    /// </summary>
+    public string? EncerrarHotkey { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtraOptions { get; set; }
 }

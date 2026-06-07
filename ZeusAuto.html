@@ -290,8 +290,31 @@
       <div class="divider"></div>
       <div class="settings-section">
         <div class="settings-section-title">Consumo de RAM</div>
-        <div class="ram-bar-labels"><span id="ram-current">9mb — Atualmente</span><span>16Gbs</span></div>
-        <div class="ram-bar-track"><div class="ram-bar-fill" id="ram-fill" style="width:.49%"></div></div>
+        <div class="ram-metrics">
+          <div class="ram-metric-card">
+            <div class="ram-metric-label">Uso atual</div>
+            <div class="ram-metric-value" id="ram-used-val">—</div>
+            <div class="ram-metric-unit">MB</div>
+          </div>
+          <div class="ram-metric-card">
+            <div class="ram-metric-label">RAM instalada</div>
+            <div class="ram-metric-value" id="ram-total-val">—</div>
+            <div class="ram-metric-unit">GB</div>
+          </div>
+          <div class="ram-metric-card">
+            <div class="ram-metric-label">% do sistema</div>
+            <div class="ram-metric-value" id="ram-pct-val">—</div>
+            <div class="ram-metric-unit">%</div>
+          </div>
+        </div>
+        <div class="ram-bar-labels" style="margin-top:12px">
+          <span id="ram-current">Aguardando dados...</span>
+          <span id="ram-total-label">—</span>
+        </div>
+        <div class="ram-bar-track">
+          <div class="ram-bar-fill" id="ram-fill" style="width:0%"></div>
+        </div>
+        <div class="ram-status" id="ram-status"></div>
       </div>
     </div>
     <div class="footer-links">
@@ -344,5 +367,78 @@
 <script src="js/features/cursor-glow.js"></script>
 <script src="js/app.js"></script>
 <script src="js/features/native-bridge.js"></script>
+<script>
+// RAM MONITOR
+// Recebe chamadas do C# via window.ZeusRamMonitor.update(usedMb, totalMb)
+// e atualiza o painel de RAM na página de configurações.
+window.ZeusRamMonitor = (function () {
+  // Formata MB de forma legível: abaixo de 1024 mostra "X MB", acima "X.X GB"
+  function fmtMb(mb) {
+    return mb >= 1024
+      ? (mb / 1024).toFixed(1) + ' GB'
+      : mb + ' MB';
+  }
+
+  // Retorna classe de cor baseada no percentual de uso do processo
+  // (não do sistema — é o quanto o ZeusAuto está usando da RAM total)
+  function statusClass(pct) {
+    if (pct < 1)   return 'ram-status-ok';
+    if (pct < 2)   return 'ram-status-warn';
+    return 'ram-status-high';
+  }
+
+  function statusText(pct) {
+    if (pct < 0.5) return 'Consumo mínimo';
+    if (pct < 1)   return 'Consumo normal';
+    if (pct < 2)   return 'Consumo moderado';
+    return 'Consumo elevado';
+  }
+
+  return {
+    update(usedMb, totalMb) {
+      const pct     = totalMb > 0 ? (usedMb / totalMb) * 100 : 0;
+      const pctFmt  = pct.toFixed(2);
+      const totalGb = totalMb > 0 ? (totalMb / 1024).toFixed(0) : '—';
+
+      // Cards de métricas
+      const usedEl  = document.getElementById('ram-used-val');
+      const totalEl = document.getElementById('ram-total-val');
+      const pctEl   = document.getElementById('ram-pct-val');
+      if (usedEl)  usedEl.textContent  = usedMb;
+      if (totalEl) totalEl.textContent = totalGb;
+      if (pctEl)   pctEl.textContent   = pctFmt;
+
+      // Rótulo e barra
+      const currentEl = document.getElementById('ram-current');
+      const totalLbl  = document.getElementById('ram-total-label');
+      const fill      = document.getElementById('ram-fill');
+      if (currentEl) currentEl.textContent = fmtMb(usedMb) + ' — ZeusAuto';
+      if (totalLbl)  totalLbl.textContent  = totalGb + ' GB instalados';
+      if (fill) {
+        // A barra representa o percentual do processo em relação à RAM total.
+        // Escala visual: 0–5% = 0–100% da barra (processo raramente passa de 1%)
+        const barPct = Math.min(100, pct * 20);
+        fill.style.width = barPct.toFixed(2) + '%';
+
+        // Cor da barra muda conforme o consumo
+        if (pct >= 2) {
+          fill.style.background = 'linear-gradient(to right, #f87171, #ef4444)';
+        } else if (pct >= 1) {
+          fill.style.background = 'linear-gradient(to right, #fbbf24, #f59e0b)';
+        } else {
+          fill.style.background = 'linear-gradient(to right, var(--accent-2), var(--accent))';
+        }
+      }
+
+      // Badge de status
+      const statusEl = document.getElementById('ram-status');
+      if (statusEl) {
+        statusEl.textContent  = statusText(pct);
+        statusEl.className    = 'ram-status ' + statusClass(pct);
+      }
+    }
+  };
+})();
+</script>
 </body>
 </html>

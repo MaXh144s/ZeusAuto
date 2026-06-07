@@ -9,6 +9,13 @@ internal sealed class NativeBridgeMessage
 
     [JsonPropertyName("profile")]
     public WebProfile? Profile { get; set; }
+
+    /// <summary>
+    /// Payload de action:trigger — contém o id do atalho a executar
+    /// ('pausar', 'cpsOverlay', 'bipToggle', 'encerrar').
+    /// </summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
 }
 
 internal sealed class WebProfile

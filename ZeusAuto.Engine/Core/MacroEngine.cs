@@ -31,6 +31,27 @@ namespace ZeusAuto.Engine.Core;
 //
 //  7. ProfileManager: limite de tentativas de reload para evitar loop
 //     em arquivo corrompido (implementado em ProfileManager)
+//
+//  Correções de robustez (bugs estruturais):
+//
+//  FIX-1: Beep movido para antes de Thread.Start() — elimina falsa sensação
+//          de ativação quando o loop ainda não começou a rodar.
+//
+//  FIX-2: Debounce de InputUp após StartMacro — impede que o InputUp do
+//          segundo clique (double-click rápido) cancele o loop antes da
+//          primeira iteração. Guard de LoopStartDebounceMs (padrão 80 ms).
+//
+//  FIX-3: Volatile.Write(ref _loopCancelled, false) — barreira de memória
+//          correta ao resetar o flag; evita que thread veja valor residual
+//          (relevante em arquiteturas ARM/x86 com reordenação de memória).
+//
+//  FIX-4: Join(LoopJoinTimeoutMs) em StartMacro — garante que thread anterior
+//          terminou antes de criar nova; elimina estado inconsistente em
+//          stop/start rápido.
+//
+//  FIX-5: PlayBeep em thread dedicada — isola Beep() bloqueante do
+//          ThreadPool compartilhado, evitando dessincronização do feedback
+//          sonoro sob carga.
 // ─────────────────────────────────────────────────────────────────────────────
 
 public sealed class MacroEngine : IDisposable
@@ -43,6 +64,14 @@ public sealed class MacroEngine : IDisposable
 
     private const uint TimerResolutionMs = 1;   // reduz quantum do scheduler para 1 ms
     private const int  BeepDurationMs    = 80;
+
+    // FIX-2: janela de debounce após StartMacro durante a qual InputUp é ignorado.
+    // 80 ms cobre o tempo de escalonamento da thread + hold mínimo intencional.
+    // Ajuste se o seu double-click window for menor que este valor.
+    private const int LoopStartDebounceMs = 80;
+
+    // FIX-4: tempo máximo de espera pela thread anterior antes de desistir.
+    private const int LoopJoinTimeoutMs = 50;
 
     // Limites de CPS — hardcoded conforme especificação
     private const double CpsMin = 1.0;
@@ -70,15 +99,27 @@ public sealed class MacroEngine : IDisposable
     private MacroConfig _config = new();
 
     // ── Estado de ativação (protegido por _sync — fora do hot path) ──────────
-    private readonly object         _sync                 = new();
-    private          MacroState     _state                = MacroState.Idle;
+    private readonly object          _sync                 = new();
+    private          MacroState      _state                = MacroState.Idle;
     private          DateTimeOffset? _firstClickReleasedAt;
-    private          bool           _listening;
-    private          bool           _disposed;
+    private          bool            _listening;
+    private          bool            _disposed;
+
+    // _bipOverride: quando false, suprime o beep independente do BeepEnabled da config.
+    // Alterado pelo MainForm via SetBipOverride — é um override global temporário,
+    // não uma alteração de configuração persistente.
+    private volatile bool _bipOverride = true;
 
     // ── Loop de clique ────────────────────────────────────────────────────────
     private Thread?       _loopThread;
-    private volatile bool _loopCancelled;   // lido no tight spin-wait sem overhead de token
+    // Não usar volatile aqui — Volatile.Write/Read são usados em todos os acessos,
+    // que fornecem as mesmas barreiras de memória sem o aviso CS0420
+    // ("reference to volatile field will not be treated as volatile").
+    private bool _loopCancelled;
+
+    // FIX-2: timestamp de quando StartMacro foi chamado, usado pelo debounce de InputUp.
+    // Protegido por _sync — escrito apenas em StartMacro, lido apenas em HandleInputUp.
+    private DateTimeOffset _loopRequestedAt;
 
     // ── Random por instância: sem contenção com Random.Shared ────────────────
     private readonly Random _rng = new();
@@ -95,10 +136,10 @@ public sealed class MacroEngine : IDisposable
         _mouseSimulator = mouseSimulator ?? new MouseSimulator();
         _profileManager = profileManager;
 
-        _inputListener.InputDown          += OnInputDown;
-        _inputListener.InputUp            += OnInputUp;
-        _inputListener.StartHotkeyPressed += OnStartHotkeyPressed;
-        _inputListener.StopHotkeyPressed  += OnStopHotkeyPressed;
+        _inputListener.InputDown           += OnInputDown;
+        _inputListener.InputUp             += OnInputUp;
+        _inputListener.StartHotkeyPressed  += OnStartHotkeyPressed;
+        _inputListener.StopHotkeyPressed   += OnStopHotkeyPressed;
         _inputListener.CpsIncrementPressed += OnCpsIncrementPressed;
         _inputListener.CpsDecrementPressed += OnCpsDecrementPressed;
 
@@ -117,8 +158,8 @@ public sealed class MacroEngine : IDisposable
     /// <summary>Config atual. Lida sem lock via referência volátil atômica.</summary>
     public MacroConfig CurrentConfig => Volatile.Read(ref _config);
 
-    public void LoadConfig(string configPath)  => ApplyConfig(_loader.Load(configPath));
-    public void LoadConfig(MacroConfig config) => ApplyConfig(config);
+    public void LoadConfig(string configPath)   => ApplyConfig(_loader.Load(configPath));
+    public void LoadConfig(MacroConfig config)  => ApplyConfig(config);
     public void ReloadConfig(string configPath) => LoadConfig(configPath);
 
     public void StartListening()
@@ -163,12 +204,36 @@ public sealed class MacroEngine : IDisposable
         MacroConfig? snapshot;
         lock (_sync)
         {
-            if (_loopThread is { IsAlive: true }) return;
+            // FIX-4: aguarda a thread anterior terminar antes de criar uma nova.
+            // Sem este Join, um stop/start rápido pode encontrar a thread antiga
+            // ainda viva, retornar sem criar nova thread, e deixar o estado em
+            // Running com zero cliques sendo disparados.
+            if (_loopThread is { IsAlive: true })
+            {
+                _loopThread.Join(LoopJoinTimeoutMs);
+                if (_loopThread.IsAlive) return; // thread travada — não inicia novo loop
+            }
+
             if (!_config.Enabled) { _state = MacroState.Idle; return; }
 
-            _state         = MacroState.Running;
-            snapshot       = _config;
-            _loopCancelled = false;
+            _state = MacroState.Running;
+            snapshot = _config;
+
+            // FIX-3: Volatile.Write garante barreira de memória completa ao resetar
+            // o flag. Sem isso, em arquiteturas ARM a thread nova pode ler o valor
+            // residual true de uma execução anterior e sair imediatamente.
+            Volatile.Write(ref _loopCancelled, false);
+
+            // FIX-2: registra o momento exato do start para o debounce de InputUp.
+            _loopRequestedAt = DateTimeOffset.UtcNow;
+
+            // FIX-1: beep emitido ANTES de Thread.Start(), enquanto ainda estamos
+            // dentro do lock com _state = Running confirmado. Isso garante que o
+            // feedback sonoro só acontece quando o estado já foi commitado, e não
+            // depois de Start() onde um InputUp poderia cancelar o loop antes do
+            // beep ser enfileirado.
+            if (snapshot.BeepEnabled && _bipOverride)
+                PlayBeep(snapshot.BeepHz);
 
             // Thread dedicada com prioridade AboveNormal:
             // o scheduler Windows prioriza sobre threads Normal (UI, Discord, browser),
@@ -181,12 +246,19 @@ public sealed class MacroEngine : IDisposable
             };
             _loopThread.Start();
         }
-
-        if (snapshot.BeepEnabled)
-            PlayBeep(snapshot.BeepHz);
     }
 
     public void StopMacro() => StopLoop();
+
+    /// <summary>
+    /// Override global de bip. Quando <c>false</c>, o beep é suprimido em todos
+    /// os acionamentos, independente do <c>BeepEnabled</c> de cada macro.
+    /// Chamado pelo MainForm ao receber o evento BipHotkeyPressed.
+    /// </summary>
+    public void SetBipOverride(bool enabled)
+    {
+        _bipOverride = enabled;
+    }
 
     public void HandleInputDown(string inputName)
     {
@@ -233,8 +305,19 @@ public sealed class MacroEngine : IDisposable
                 _firstClickReleasedAt = DateTimeOffset.UtcNow;
                 return;
             }
+
             if (_state == MacroState.Running)
-                shouldStop = true;
+            {
+                // FIX-2: debounce — ignora InputUp que chegue dentro de LoopStartDebounceMs
+                // após o StartMacro. Isso evita que o InputUp do segundo clique de um
+                // double-click rápido cancele o loop antes da primeira iteração ser executada,
+                // que era o principal responsável pelo sintoma "bipa mas não clica".
+                bool withinDebounce =
+                    (DateTimeOffset.UtcNow - _loopRequestedAt).TotalMilliseconds < LoopStartDebounceMs;
+
+                if (!withinDebounce)
+                    shouldStop = true;
+            }
         }
 
         if (shouldStop) StopLoop();
@@ -244,10 +327,10 @@ public sealed class MacroEngine : IDisposable
     {
         if (_disposed) return;
         StopListening();
-        _inputListener.InputDown          -= OnInputDown;
-        _inputListener.InputUp            -= OnInputUp;
-        _inputListener.StartHotkeyPressed -= OnStartHotkeyPressed;
-        _inputListener.StopHotkeyPressed  -= OnStopHotkeyPressed;
+        _inputListener.InputDown           -= OnInputDown;
+        _inputListener.InputUp             -= OnInputUp;
+        _inputListener.StartHotkeyPressed  -= OnStartHotkeyPressed;
+        _inputListener.StopHotkeyPressed   -= OnStopHotkeyPressed;
         _inputListener.CpsIncrementPressed -= OnCpsIncrementPressed;
         _inputListener.CpsDecrementPressed -= OnCpsDecrementPressed;
         _inputListener.Dispose();
@@ -289,7 +372,7 @@ public sealed class MacroEngine : IDisposable
         long      nextTick = 0L;
         long      freq     = Stopwatch.Frequency;
 
-        while (!_loopCancelled)
+        while (!Volatile.Read(ref _loopCancelled))
         {
             // Lê config uma única vez por ciclo — sem lock, referência atômica.
             // Se ApplyConfig trocar _config durante o ciclo, a próxima iteração
@@ -325,7 +408,7 @@ public sealed class MacroEngine : IDisposable
                     Thread.Sleep(sleepMs - 1);
 
                 // Spin-wait final: preciso ao tick, sem overhead de kernel
-                while (sw.ElapsedTicks < nextTick && !_loopCancelled)
+                while (sw.ElapsedTicks < nextTick && !Volatile.Read(ref _loopCancelled))
                     Thread.SpinWait(20);
             }
             else
@@ -370,7 +453,7 @@ public sealed class MacroEngine : IDisposable
         // UnsafeQueueUserWorkItem evita a captura do ExecutionContext (menor overhead).
         // O spin-wait aqui é intencional: holdMs é curto (8–20 ms) e precisa de
         // precisão que Thread.Sleep sem timeBeginPeriod não garantiria.
-        int capturedHold = holdMs;
+        int    capturedHold   = holdMs;
         string capturedButton = button;
         ThreadPool.UnsafeQueueUserWorkItem(_ =>
         {
@@ -422,15 +505,15 @@ public sealed class MacroEngine : IDisposable
     {
         // Sinaliza o spin-wait interno imediatamente via volatile bool —
         // mais rápido que CancellationToken, sem alocação.
-        _loopCancelled = true;
+        Volatile.Write(ref _loopCancelled, true);
         lock (_sync)
         {
             _state                = MacroState.Idle;
             _firstClickReleasedAt = null;
         }
-        // Não faz Join: o loop para sozinho na próxima verificação de _loopCancelled.
+        // Não faz Join aqui: o loop para sozinho na próxima verificação de _loopCancelled.
         // Isso evita deadlock se StopLoop for chamado da UI thread enquanto o loop
-        // está aguardando no spin-wait.
+        // está aguardando no spin-wait. O Join necessário está em StartMacro (FIX-4).
     }
 
     private int CalculateDelay(MacroConfig cfg)
@@ -443,13 +526,20 @@ public sealed class MacroEngine : IDisposable
         return Math.Max(1, interval + offset);
     }
 
+    /// <summary>
+    /// FIX-5: Beep em thread dedicada em vez do ThreadPool compartilhado.
+    /// Beep() da WinAPI é bloqueante (dorme BeepDurationMs na thread chamante).
+    /// No ThreadPool isso bloqueava uma thread do pool por 80 ms, causando
+    /// dessincronização do feedback sonoro sob carga (pool ocupado com ReleaseButton).
+    /// Thread dedicada isola completamente o beep de qualquer contenção externa.
+    /// </summary>
     private static void PlayBeep(int hz)
     {
         uint freq = (uint)Math.Clamp(hz, 200, 1000);
-        ThreadPool.UnsafeQueueUserWorkItem(_ =>
+        new Thread(() =>
         {
             try { Beep(freq, BeepDurationMs); } catch { /* hardware sem suporte a bip */ }
-        }, null);
+        }) { IsBackground = true, Name = "ZeusAuto.Beep" }.Start();
     }
 
     private void ApplyConfig(MacroConfig config)

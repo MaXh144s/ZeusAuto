@@ -39,10 +39,18 @@ public sealed class InputListener : IInputListener
     private string[] _stopHotkey = [];
     private string[] _cpsIncrementHotkey = [];
     private string[] _cpsDecrementHotkey = [];
+    private string[] _pauseHotkey = [];
+    private string[] _overlayHotkey = [];
+    private string[] _bipHotkey = [];
+    private string[] _encerrarHotkey = [];
     private bool _startHotkeyLatched;
     private bool _stopHotkeyLatched;
     private bool _cpsIncrementLatched;
     private bool _cpsDecrementLatched;
+    private bool _pauseHotkeyLatched;
+    private bool _overlayHotkeyLatched;
+    private bool _bipHotkeyLatched;
+    private bool _encerrarHotkeyLatched;
     private bool _disposed;
 
     public InputListener()
@@ -62,6 +70,14 @@ public sealed class InputListener : IInputListener
     public event EventHandler? CpsIncrementPressed;
 
     public event EventHandler? CpsDecrementPressed;
+
+    public event EventHandler? PauseHotkeyPressed;
+
+    public event EventHandler? OverlayHotkeyPressed;
+
+    public event EventHandler? BipHotkeyPressed;
+
+    public event EventHandler? EncerrarHotkeyPressed;
 
     public void StartListening()
     {
@@ -127,10 +143,18 @@ public sealed class InputListener : IInputListener
             _stopHotkey           = ParseHotkey(config.StopHotkey);
             _cpsIncrementHotkey   = ParseHotkey(config.CpsIncrementHotkey);
             _cpsDecrementHotkey   = ParseHotkey(config.CpsDecrementHotkey);
+            _pauseHotkey          = ParseHotkey(config.PauseHotkey);
+            _overlayHotkey        = ParseHotkey(config.OverlayHotkey);
+            _bipHotkey            = ParseHotkey(config.BipToggleHotkey);
+            _encerrarHotkey       = ParseHotkey(config.EncerrarHotkey);
             _startHotkeyLatched   = false;
             _stopHotkeyLatched    = false;
             _cpsIncrementLatched  = false;
             _cpsDecrementLatched  = false;
+            _pauseHotkeyLatched   = false;
+            _overlayHotkeyLatched = false;
+            _bipHotkeyLatched     = false;
+            _encerrarHotkeyLatched = false;
         }
     }
 
@@ -179,6 +203,10 @@ public sealed class InputListener : IInputListener
                         _stopHotkeyLatched       = IsHotkeyPart(keyName, _stopHotkey)         && _stopHotkeyLatched       && IsHotkeyPressed(_stopHotkey);
                         _cpsIncrementLatched     = IsHotkeyPart(keyName, _cpsIncrementHotkey) && _cpsIncrementLatched     && IsHotkeyPressed(_cpsIncrementHotkey);
                         _cpsDecrementLatched     = IsHotkeyPart(keyName, _cpsDecrementHotkey) && _cpsDecrementLatched     && IsHotkeyPressed(_cpsDecrementHotkey);
+                        _pauseHotkeyLatched      = IsHotkeyPart(keyName, _pauseHotkey)        && _pauseHotkeyLatched      && IsHotkeyPressed(_pauseHotkey);
+                        _overlayHotkeyLatched    = IsHotkeyPart(keyName, _overlayHotkey)      && _overlayHotkeyLatched    && IsHotkeyPressed(_overlayHotkey);
+                        _bipHotkeyLatched        = IsHotkeyPart(keyName, _bipHotkey)          && _bipHotkeyLatched        && IsHotkeyPressed(_bipHotkey);
+                        _encerrarHotkeyLatched   = IsHotkeyPart(keyName, _encerrarHotkey)     && _encerrarHotkeyLatched   && IsHotkeyPressed(_encerrarHotkey);
                     }
 
                     InputUp?.Invoke(this, new InputEventArgs(keyName));
@@ -260,6 +288,10 @@ public sealed class InputListener : IInputListener
                 _pressedKeys.Clear();
                 _startHotkeyLatched = false;
                 _stopHotkeyLatched = false;
+                _pauseHotkeyLatched = false;
+                _overlayHotkeyLatched = false;
+                _bipHotkeyLatched = false;
+                _encerrarHotkeyLatched = false;
                 _hookThreadId = 0;
             }
         }
@@ -271,6 +303,10 @@ public sealed class InputListener : IInputListener
         EventHandler? stop       = null;
         EventHandler? cpsInc     = null;
         EventHandler? cpsDec     = null;
+        EventHandler? pause      = null;
+        EventHandler? overlay    = null;
+        EventHandler? bip        = null;
+        EventHandler? encerrar   = null;
 
         lock (_sync)
         {
@@ -327,12 +363,69 @@ public sealed class InputListener : IInputListener
             {
                 _cpsDecrementLatched = false;
             }
+
+            // Atalhos globais — comportamento toggle (dispara uma vez por pressão)
+            if (_pauseHotkey.Length > 0 && IsHotkeyPressed(_pauseHotkey))
+            {
+                if (!_pauseHotkeyLatched)
+                {
+                    _pauseHotkeyLatched = true;
+                    pause = PauseHotkeyPressed;
+                }
+            }
+            else
+            {
+                _pauseHotkeyLatched = false;
+            }
+
+            if (_overlayHotkey.Length > 0 && IsHotkeyPressed(_overlayHotkey))
+            {
+                if (!_overlayHotkeyLatched)
+                {
+                    _overlayHotkeyLatched = true;
+                    overlay = OverlayHotkeyPressed;
+                }
+            }
+            else
+            {
+                _overlayHotkeyLatched = false;
+            }
+
+            if (_bipHotkey.Length > 0 && IsHotkeyPressed(_bipHotkey))
+            {
+                if (!_bipHotkeyLatched)
+                {
+                    _bipHotkeyLatched = true;
+                    bip = BipHotkeyPressed;
+                }
+            }
+            else
+            {
+                _bipHotkeyLatched = false;
+            }
+
+            if (_encerrarHotkey.Length > 0 && IsHotkeyPressed(_encerrarHotkey))
+            {
+                if (!_encerrarHotkeyLatched)
+                {
+                    _encerrarHotkeyLatched = true;
+                    encerrar = EncerrarHotkeyPressed;
+                }
+            }
+            else
+            {
+                _encerrarHotkeyLatched = false;
+            }
         }
 
         start?.Invoke(this, EventArgs.Empty);
         stop?.Invoke(this, EventArgs.Empty);
         cpsInc?.Invoke(this, EventArgs.Empty);
         cpsDec?.Invoke(this, EventArgs.Empty);
+        pause?.Invoke(this, EventArgs.Empty);
+        overlay?.Invoke(this, EventArgs.Empty);
+        bip?.Invoke(this, EventArgs.Empty);
+        encerrar?.Invoke(this, EventArgs.Empty);
     }
 
     private bool IsHotkeyPressed(IReadOnlyCollection<string> hotkey)

@@ -153,6 +153,24 @@ internal sealed class EngineSlot : IDisposable
     public void LoadConfig(MacroConfig config) => _engine.LoadConfig(config);
 
     /// <summary>
+    /// Habilita o monitoramento de input desta engine.
+    /// Chamado pelo MainForm ao despausar todos os macros.
+    /// </summary>
+    public void EnableMonitoring() => _engine.EnableMonitoring();
+
+    /// <summary>
+    /// Desabilita o monitoramento de input desta engine e para o loop de cliques.
+    /// Chamado pelo MainForm ao pausar todos os macros.
+    /// </summary>
+    public void DisableMonitoring() => _engine.DisableMonitoring();
+
+    /// <summary>
+    /// Override global de bip. Quando <c>false</c>, suprime o beep de todos os acionamentos.
+    /// Chamado pelo MainForm ao receber o evento BipHotkeyPressed.
+    /// </summary>
+    public void SetBipOverride(bool enabled) => _engine.SetBipOverride(enabled);
+
+    /// <summary>
     /// Espelha o evento CpsChanged da engine — disparado a cada pressão de
     /// atalho de ajuste de CPS. Usado pelo MainForm para exibir o toast.
     /// </summary>
