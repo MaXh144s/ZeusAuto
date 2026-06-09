@@ -115,6 +115,28 @@ window.ZeusToggleState = function(id, active) {
   if (typeof renderAtalhos === 'function') renderAtalhos();
 };
 
+// Chamado pelo C# (PostCpsUpdate) quando o atalho CPS+/CPS- é pressionado.
+// Atualiza state.macros[key].cpsBase com o novo valor e re-renderiza os cards,
+// a legenda e — se a config desse macro estiver aberta — o campo cfg-cps-base.
+window.ZeusCpsUpdate = function(macroKey, newCps) {
+  if (!state.macros[macroKey]) return;
+  const rounded = Math.round(newCps * 10) / 10;
+  state.macros[macroKey].cpsBase = rounded;
+
+  // Re-renderiza cards e legenda para refletir o novo CPS
+  if (typeof renderMacroList   === 'function') renderMacroList();
+  if (typeof renderMouseLegend === 'function') renderMouseLegend();
+  if (typeof renderGeralGrid   === 'function') renderGeralGrid();
+
+  // Se a janela de configuração deste macro estiver aberta, atualiza o campo ao vivo
+  if (state.editingKey === macroKey) {
+    const el = document.getElementById('cfg-cps-base');
+    if (el && !el.disabled) {
+      el.value = rounded % 1 === 0 ? rounded.toFixed(1) : rounded.toFixed(1);
+    }
+  }
+};
+
 (function installNativeBridgeHooks() {
   const originalSaveMacroKey = window.saveMacroKey;
   window.saveMacroKey = function() {

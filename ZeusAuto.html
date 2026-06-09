@@ -121,7 +121,7 @@
             <span class="info-icon" title="Velocidade fixa de cliques por segundo para esta tecla (quando humanização está desativada)">i</span>
           </label>
           <div class="num-input-wrap">
-            <input type="number" class="num-input" id="cfg-cps-base" min="1" max="40" value="13" oninput="validateCpsBaseField(this)" style="width:80px">
+            <input type="number" class="num-input" id="cfg-cps-base" min="1" max="40" step="0.1" value="13.0" oninput="validateCpsBaseField(this)" style="width:80px">
             <div class="num-input-unit">cps</div>
           </div>
           <div class="num-input-hint">Velocidade fixa usada quando humanização está desativada</div>
@@ -140,14 +140,14 @@
                 <div>
                   <div class="form-label" style="margin-bottom:5px">CPS Mínimo</div>
                   <div class="num-input-wrap">
-                    <input type="number" class="num-input" id="cfg-cps-min" min="1" max="40" value="10" oninput="validateCpsRange()" style="width:70px">
+                    <input type="number" class="num-input" id="cfg-cps-min" min="1" max="40" step="0.1" value="10.0" oninput="validateCpsRange()" style="width:70px">
                     <div class="num-input-unit">cps</div>
                   </div>
                 </div>
                 <div>
                   <div class="form-label" style="margin-bottom:5px">CPS Máximo</div>
                   <div class="num-input-wrap">
-                    <input type="number" class="num-input" id="cfg-cps-max" min="1" max="40" value="16" oninput="validateCpsRange()" style="width:70px">
+                    <input type="number" class="num-input" id="cfg-cps-max" min="1" max="40" step="0.1" value="16.0" oninput="validateCpsRange()" style="width:70px">
                     <div class="num-input-unit">cps</div>
                   </div>
                 </div>
@@ -180,6 +180,15 @@
                   </div>
                   <div class="shortcut-hint" id="sh-cps-minus">teclas acumulam até salvar</div>
                 </div>
+              </div>
+              <!-- Passo de incremento/decremento -->
+              <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+                <div class="form-label" style="margin-bottom:6px">Passo por atalho <span style="color:var(--text-muted);font-size:10px">(quanto o CPS sobe/desce a cada pressão)</span></div>
+                <div class="num-input-wrap">
+                  <input type="number" class="num-input" id="cfg-cps-step" min="0.1" max="10" step="0.1" value="1.0" onchange="validateCpsStepField(this)" oninput="validateCpsStepField(this)" style="width:80px">
+                  <div class="num-input-unit">cps</div>
+                </div>
+                <div class="num-input-hint">Ex: 0.5 → cada pressão de CPS+ ou CPS− ajusta 0.5 cps</div>
               </div>
             </div>
           </div>

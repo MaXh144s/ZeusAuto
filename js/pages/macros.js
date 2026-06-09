@@ -2,8 +2,12 @@
 // ============================================================
 function displayCps(cfg) {
   if (!cfg) return null;
-  if (cfg.humanize) return ((cfg.cpsMin + cfg.cpsMax) / 2).toFixed(1);
-  return cfg.cpsBase;
+  if (cfg.humanize) {
+    const avg = (cfg.cpsMin + cfg.cpsMax) / 2;
+    return avg % 1 === 0 ? avg.toFixed(0) : avg.toFixed(1);
+  }
+  const v = parseFloat(cfg.cpsBase);
+  return v % 1 === 0 ? v.toFixed(0) : v.toFixed(1);
 }
 
 // ============================================================
@@ -135,7 +139,7 @@ function openConfigureForKey(key, isNew = false) {
 
   document.getElementById('cfg-key-name').textContent = key;
 
-  const cfg = state.macros[key] || { interval:200, cpsBase:13, humanize:false, cpsMin:10, cpsMax:16, shortcuts:false, cpsPlus:[], cpsMinus:[], bip:false, bipHz:200 };
+  const cfg = state.macros[key] || { interval:200, cpsBase:13, humanize:false, cpsMin:10, cpsMax:16, cpsStep:1, shortcuts:false, cpsPlus:[], cpsMinus:[], bip:false, bipHz:200 };
 
   // Interval
   document.getElementById('cfg-interval').value = cfg.interval;
@@ -143,16 +147,17 @@ function openConfigureForKey(key, isNew = false) {
   document.getElementById('cfg-interval-val').textContent = cfg.interval + 'ms';
   updateSliderPosition('cfg-interval', 'cfg-interval-val');
 
-  // CPS Base da tecla
-  document.getElementById('cfg-cps-base').value = cfg.cpsBase !== undefined ? cfg.cpsBase : 13;
+  // CPS Base da tecla (agora aceita 1 casa decimal)
+  const cpsBaseVal = cfg.cpsBase !== undefined ? cfg.cpsBase : 13;
+  document.getElementById('cfg-cps-base').value = parseFloat(cpsBaseVal).toFixed(1);
 
   // Humanize
   state.options.humanize = cfg.humanize;
   setToggle('humanize', cfg.humanize);
   document.getElementById('humanize-panel').style.display = cfg.humanize ? 'block' : 'none';
   setCpsBaseLock(cfg.humanize);
-  document.getElementById('cfg-cps-min').value = cfg.cpsMin || 10;
-  document.getElementById('cfg-cps-max').value = cfg.cpsMax || 16;
+  document.getElementById('cfg-cps-min').value = parseFloat(cfg.cpsMin || 10).toFixed(1);
+  document.getElementById('cfg-cps-max').value = parseFloat(cfg.cpsMax || 16).toFixed(1);
 
   // Shortcuts
   state.options.shortcuts = cfg.shortcuts;
@@ -162,6 +167,10 @@ function openConfigureForKey(key, isNew = false) {
   document.getElementById('shortcuts-panel').style.display = cfg.shortcuts ? 'block' : 'none';
   renderMacroShortcutDisplay('cps-plus');
   renderMacroShortcutDisplay('cps-minus');
+
+  // CPS Step
+  const cpsStepVal = cfg.cpsStep !== undefined ? cfg.cpsStep : 1;
+  document.getElementById('cfg-cps-step').value = parseFloat(cpsStepVal).toFixed(1);
 
   // Bip
   state.options.bip = cfg.bip;
@@ -349,19 +358,21 @@ function renderMacroShortcutDisplay(which) {
 // CPS VALIDATION
 // ============================================================
 function validateCpsBaseField(el) {
-  let v = parseInt(el.value);
+  let v = parseFloat(el.value);
   if (isNaN(v)) return;
-  if (v < 1) { el.value = 1; }
-  if (v > 40) { el.value = 40; }
+  v = Math.round(v * 10) / 10; // 1 decimal max
+  if (v < 1)  { el.value = '1.0'; return; }
+  if (v > 40) { el.value = '40.0'; return; }
+  el.value = v;
 }
 
 function validateCpsRange() {
   const minEl = document.getElementById('cfg-cps-min');
   const maxEl = document.getElementById('cfg-cps-max');
   const errEl = document.getElementById('cps-range-err');
-  let mn = parseInt(minEl.value), mx = parseInt(maxEl.value);
-  mn = Math.max(1, Math.min(40, mn || 1));
-  mx = Math.max(1, Math.min(40, mx || 40));
+  let mn = parseFloat(minEl.value), mx = parseFloat(maxEl.value);
+  mn = Math.round(Math.max(1, Math.min(40, isNaN(mn) ? 1 : mn)) * 10) / 10;
+  mx = Math.round(Math.max(1, Math.min(40, isNaN(mx) ? 40 : mx)) * 10) / 10;
   if (mn >= mx) {
     errEl.style.display = 'block';
     errEl.textContent = 'CPS Mínimo deve ser menor que CPS Máximo';
@@ -373,6 +384,15 @@ function validateCpsRange() {
   minEl.classList.remove('has-error');
   maxEl.classList.remove('has-error');
   return true;
+}
+
+function validateCpsStepField(el) {
+  let v = parseFloat(el.value);
+  if (isNaN(v) || v <= 0) { el.value = '1.0'; return; }
+  v = Math.round(v * 10) / 10;
+  if (v < 0.1) { el.value = '0.1'; return; }
+  if (v > 10)  { el.value = '10.0'; return; }
+  el.value = v;
 }
 
 // ============================================================
@@ -408,10 +428,11 @@ function saveMacroKey() {
 
   state.macros[state.editingKey] = {
     interval: parseInt(document.getElementById('cfg-interval').value),
-    cpsBase: parseInt(document.getElementById('cfg-cps-base').value) || 13,
+    cpsBase: Math.round(parseFloat(document.getElementById('cfg-cps-base').value) * 10) / 10 || 13,
     humanize: state.options.humanize,
-    cpsMin: parseInt(document.getElementById('cfg-cps-min').value),
-    cpsMax: parseInt(document.getElementById('cfg-cps-max').value),
+    cpsMin: Math.round(parseFloat(document.getElementById('cfg-cps-min').value) * 10) / 10,
+    cpsMax: Math.round(parseFloat(document.getElementById('cfg-cps-max').value) * 10) / 10,
+    cpsStep: Math.round(parseFloat(document.getElementById('cfg-cps-step').value) * 10) / 10 || 1,
     shortcuts: state.options.shortcuts,
     cpsPlus: [...state.macroShortcuts['cps-plus']],
     cpsMinus: [...state.macroShortcuts['cps-minus']],

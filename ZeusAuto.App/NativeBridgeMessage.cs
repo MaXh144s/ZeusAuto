@@ -73,21 +73,28 @@ internal sealed class WebMacroConfig
     [JsonPropertyName("interval")]
     public int Interval { get; set; }
 
-    /// <summary>Velocidade fixa em CPS quando Humanize está desligado (ex: 13).</summary>
+    /// <summary>Velocidade fixa em CPS quando Humanize está desligado (ex: 13.5).</summary>
     [JsonPropertyName("cpsBase")]
-    public int CpsBase { get; set; }
+    public double CpsBase { get; set; }
 
     /// <summary>Liga/desliga o modo de variação de velocidade.</summary>
     [JsonPropertyName("humanize")]
     public bool Humanize { get; set; }
 
-    /// <summary>CPS mínimo do range humanize (ex: 10).</summary>
+    /// <summary>CPS mínimo do range humanize (ex: 10.5).</summary>
     [JsonPropertyName("cpsMin")]
-    public int CpsMin { get; set; }
+    public double CpsMin { get; set; }
 
-    /// <summary>CPS máximo do range humanize (ex: 16).</summary>
+    /// <summary>CPS máximo do range humanize (ex: 16.5).</summary>
     [JsonPropertyName("cpsMax")]
-    public int CpsMax { get; set; }
+    public double CpsMax { get; set; }
+
+    /// <summary>
+    /// Passo de incremento/decremento de CPS pelos atalhos (ex: 1.0).
+    /// Valor padrão 1.0 quando não enviado pelo JS (retrocompatibilidade).
+    /// </summary>
+    [JsonPropertyName("cpsStep")]
+    public double CpsStep { get; set; } = 1.0;
 
     /// <summary>Emite bip sonoro ao iniciar o macro.</summary>
     [JsonPropertyName("bip")]

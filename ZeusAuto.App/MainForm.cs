@@ -295,7 +295,11 @@ public sealed class MainForm : Form
             if (existingByKey.TryGetValue(entry.Key, out EngineSlot? existing))
                 existing.LoadConfig(config);
             else
-                _engines.Add(new EngineSlot(entry.Key, config));
+            {
+                var slot = new EngineSlot(entry.Key, config);
+                slot.CpsChanged += (_, args) => PostCpsUpdate(entry.Key, args.NewCps);
+                _engines.Add(slot);
+            }
         }
 
         // Reaplicar o estado de pausa e bip nos engines novos/recarregados
@@ -425,15 +429,19 @@ public sealed class MainForm : Form
             clickIntervalMs = avgCps > 0 ? (int)(1000.0 / avgCps) : 100;
         }
         else
-            clickIntervalMs = macro.CpsBase > 0 ? 1000 / macro.CpsBase : 100;
+            clickIntervalMs = macro.CpsBase > 0 ? (int)(1000.0 / macro.CpsBase) : 100;
 
         int randomMaxMs = 0;
         if (macro.Humanize && macro.CpsMin > 0 && macro.CpsMax > 0)
         {
-            int msAtCpsMin = 1000 / macro.CpsMin;
-            int msAtCpsMax = 1000 / macro.CpsMax;
-            randomMaxMs = Math.Max(0, (msAtCpsMin - msAtCpsMax) / 2);
+            double msAtCpsMin = 1000.0 / macro.CpsMin;
+            double msAtCpsMax = 1000.0 / macro.CpsMax;
+            randomMaxMs = Math.Max(0, (int)((msAtCpsMin - msAtCpsMax) / 2));
         }
+
+        // CpsStep: passo de ajuste por atalho (convertido para variação de intervalo)
+        // Clamp para valores razoáveis (0.1 a 10 CPS por passo).
+        double cpsStep = Math.Clamp(macro.CpsStep > 0 ? macro.CpsStep : 1.0, 0.1, 10.0);
 
         int beepHz = macro.BipHz > 0 ? Math.Clamp(macro.BipHz, 200, 1000) : 200;
 
@@ -461,6 +469,7 @@ public sealed class MainForm : Form
             BeepHz               = beepHz,
             CpsIncrementHotkey   = cpsIncrementHotkey,
             CpsDecrementHotkey   = cpsDecrementHotkey,
+            CpsStep              = cpsStep,
         };
     }
 
@@ -608,6 +617,22 @@ public sealed class MainForm : Form
     {
         if (_webView.CoreWebView2 is null) return;
         string script = $"window.ZeusToggleState?.({JsonSerializer.Serialize(id)}, {active.ToString().ToLowerInvariant()});";
+        _webView.CoreWebView2.ExecuteScriptAsync(script);
+    }
+
+    /// <summary>
+    /// Notifica o JS do novo CPS quando o atalho de ajuste é pressionado.
+    /// Chama window.ZeusCpsUpdate(macroKey, newCps) — definido em native-bridge.js.
+    /// O JS atualiza state.macros[key].cpsBase e re-renderiza os cards/legend.
+    /// </summary>
+    private void PostCpsUpdate(string macroKey, double newCps)
+    {
+        if (_webView.CoreWebView2 is null) return;
+        // Usa InvokeRequired pois CpsChanged pode chegar de thread da engine
+        if (InvokeRequired) { Invoke(() => PostCpsUpdate(macroKey, newCps)); return; }
+        // Formata com InvariantCulture para que o JS receba "12.7" e não "12,7"
+        string cpsStr = newCps.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+        string script = $"window.ZeusCpsUpdate?.({JsonSerializer.Serialize(macroKey)}, {cpsStr});";
         _webView.CoreWebView2.ExecuteScriptAsync(script);
     }
 
