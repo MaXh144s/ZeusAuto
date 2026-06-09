@@ -295,7 +295,11 @@ public sealed class MainForm : Form
             if (existingByKey.TryGetValue(entry.Key, out EngineSlot? existing))
                 existing.LoadConfig(config);
             else
-                _engines.Add(new EngineSlot(entry.Key, config));
+            {
+                var slot = new EngineSlot(entry.Key, config);
+                slot.CpsChanged += OnSlotCpsChanged;
+                _engines.Add(slot);
+            }
         }
 
         // Reaplicar o estado de pausa e bip nos engines novos/recarregados
@@ -425,7 +429,7 @@ public sealed class MainForm : Form
             clickIntervalMs = avgCps > 0 ? (int)(1000.0 / avgCps) : 100;
         }
         else
-            clickIntervalMs = macro.CpsBase > 0 ? 1000 / macro.CpsBase : 100;
+            clickIntervalMs = macro.CpsBase > 0 ? (int)Math.Round(1000.0 / macro.CpsBase) : 100;
 
         int randomMaxMs = 0;
         if (macro.Humanize && macro.CpsMin > 0 && macro.CpsMax > 0)
@@ -590,6 +594,40 @@ public sealed class MainForm : Form
         // Environment.Exit(0): encerra o processo imediatamente, sem esperar a
         // WebView2 completar seu dispose assíncrono (que causava a janela branca).
         Environment.Exit(0);
+    }
+
+    // ── Sincronização CPS engine → UI ─────────────────────────────────────────
+
+    /// <summary>
+    /// Handler do evento CpsChanged de cada EngineSlot.
+    /// Disparado pela thread do timer de aceleração CPS (System.Threading.Timer)
+    /// — nunca da UI thread — por isso BeginInvoke é obrigatório antes de
+    /// qualquer acesso ao WebView2.
+    /// O sender é o macroKey (string) do slot que disparou o evento.
+    /// </summary>
+    private void OnSlotCpsChanged(object? sender, ZeusAuto.Engine.Core.CpsChangedEventArgs args)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => OnSlotCpsChanged(sender, args));
+            return;
+        }
+
+        if (sender is string macroKey)
+            PostCpsSyncToUi(macroKey, args.NewCps, args.NewIntervalMs);
+    }
+
+    /// <summary>
+    /// Envia o CPS ajustado por atalho de volta à interface JS para que o campo
+    /// exibido ao usuário reflita o valor real rodando na engine.
+    /// Deve ser chamado APENAS da UI thread (garante BeginInvoke no handler acima).
+    /// </summary>
+    private void PostCpsSyncToUi(string macroKey, double newCps, int newIntervalMs)
+    {
+        if (_webView.CoreWebView2 is null) return;
+        double displayCps = Math.Round(newCps, 1);
+        string script = $"window.ZeusCpsSync?.({JsonSerializer.Serialize(macroKey)}, {displayCps.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {newIntervalMs});";
+        _webView.CoreWebView2.ExecuteScriptAsync(script);
     }
 
     private void PostNativeStatus(string message, bool isError = false)

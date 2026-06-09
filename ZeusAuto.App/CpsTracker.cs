@@ -185,8 +185,10 @@ internal sealed class EngineSlot : IDisposable
 
         _engine = new MacroEngine(mouseSimulator: _sim);
 
-        // Repassa CpsChanged para o exterior (MainForm → toast)
-        _engine.CpsChanged += (sender, args) => CpsChanged?.Invoke(sender, args);
+        // Repassa CpsChanged para o exterior, passando o macroKey como sender.
+        // Isso permite ao MainForm identificar qual slot disparou o evento sem
+        // precisar de acesso direto ao _engine privado.
+        _engine.CpsChanged += (_, args) => CpsChanged?.Invoke(macroKey, args);
 
         // Quando um hotkey de CPS ajusta o intervalo, persiste imediatamente no JSON
         if (profileManager is not null)

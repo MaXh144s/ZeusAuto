@@ -143,16 +143,26 @@ function openConfigureForKey(key, isNew = false) {
   document.getElementById('cfg-interval-val').textContent = cfg.interval + 'ms';
   updateSliderPosition('cfg-interval', 'cfg-interval-val');
 
-  // CPS Base da tecla
-  document.getElementById('cfg-cps-base').value = cfg.cpsBase !== undefined ? cfg.cpsBase : 13;
+  // CPS Base da tecla — usa _engineCps se disponível (ajuste via atalho),
+  // caso contrário usa cpsBase salvo pelo usuário.
+  const activeCps = cfg._engineCps !== undefined ? cfg._engineCps : (cfg.cpsBase !== undefined ? cfg.cpsBase : 13);
+  document.getElementById('cfg-cps-base').value = activeCps;
+
+  // Humanize: recentra o range no _engineCps se disponível
+  const activeMin = cfg._engineCps !== undefined
+    ? Math.max(1,  Math.round(cfg._engineCps - (cfg.cpsMax - cfg.cpsMin) / 2))
+    : (cfg.cpsMin || 10);
+  const activeMax = cfg._engineCps !== undefined
+    ? Math.min(50, Math.round(cfg._engineCps + (cfg.cpsMax - cfg.cpsMin) / 2))
+    : (cfg.cpsMax || 16);
 
   // Humanize
   state.options.humanize = cfg.humanize;
   setToggle('humanize', cfg.humanize);
   document.getElementById('humanize-panel').style.display = cfg.humanize ? 'block' : 'none';
   setCpsBaseLock(cfg.humanize);
-  document.getElementById('cfg-cps-min').value = cfg.cpsMin || 10;
-  document.getElementById('cfg-cps-max').value = cfg.cpsMax || 16;
+  document.getElementById('cfg-cps-min').value = activeMin;
+  document.getElementById('cfg-cps-max').value = activeMax;
 
   // Shortcuts
   state.options.shortcuts = cfg.shortcuts;
@@ -349,10 +359,12 @@ function renderMacroShortcutDisplay(which) {
 // CPS VALIDATION
 // ============================================================
 function validateCpsBaseField(el) {
-  let v = parseInt(el.value);
+  let v = parseFloat(el.value);
   if (isNaN(v)) return;
-  if (v < 1) { el.value = 1; }
-  if (v > 40) { el.value = 40; }
+  v = Math.round(v * 10) / 10;
+  if (v < 1) { el.value = 1; return; }
+  if (v > 40) { el.value = 40; return; }
+  el.value = v;
 }
 
 function validateCpsRange() {
@@ -408,7 +420,7 @@ function saveMacroKey() {
 
   state.macros[state.editingKey] = {
     interval: parseInt(document.getElementById('cfg-interval').value),
-    cpsBase: parseInt(document.getElementById('cfg-cps-base').value) || 13,
+    cpsBase: parseFloat(document.getElementById('cfg-cps-base').value) || 13,
     humanize: state.options.humanize,
     cpsMin: parseInt(document.getElementById('cfg-cps-min').value),
     cpsMax: parseInt(document.getElementById('cfg-cps-max').value),
@@ -417,6 +429,7 @@ function saveMacroKey() {
     cpsMinus: [...state.macroShortcuts['cps-minus']],
     bip: state.options.bip,
     bipHz: parseInt(document.getElementById('cfg-hz').value),
+    // _engineCps não incluído: salvar manualmente redefine a base do acumulador
   };
 
   state.recordingMacroShortcut = null;

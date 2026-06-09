@@ -115,6 +115,26 @@ window.ZeusToggleState = function(id, active) {
   if (typeof renderAtalhos === 'function') renderAtalhos();
 };
 
+// Chamado pelo C# a cada ajuste de CPS via atalho.
+// Não toca em cpsBase/cpsMin/cpsMax (são inteiros da UI) — guarda o valor
+// preciso em _engineCps para que openConfigureForKey mostre o valor real.
+// Quando o usuário salvar manualmente, saveMacroKey limpa _engineCps.
+window.ZeusCpsSync = function(macroKey, newCps, newIntervalMs) {
+  const keyMap = {
+    'MouseLeft':   'Tecla Esquerda',
+    'MouseRight':  'Tecla Direita',
+    'MouseMiddle': 'Tecla Scroll',
+    'MouseX1':     'Tecla xbutton4',
+    'MouseX2':     'Tecla xbutton5',
+  };
+  const stateKey = keyMap[macroKey] || macroKey;
+  const cfg = state.macros[stateKey];
+  if (!cfg) return;
+  // _engineCps: valor double preciso da engine (ex: 12.7).
+  // Usado por openConfigureForKey para pré-preencher o campo de CPS.
+  cfg._engineCps = newCps;
+};
+
 (function installNativeBridgeHooks() {
   const originalSaveMacroKey = window.saveMacroKey;
   window.saveMacroKey = function() {

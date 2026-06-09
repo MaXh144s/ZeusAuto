@@ -73,9 +73,9 @@ internal sealed class WebMacroConfig
     [JsonPropertyName("interval")]
     public int Interval { get; set; }
 
-    /// <summary>Velocidade fixa em CPS quando Humanize está desligado (ex: 13).</summary>
+    /// <summary>Velocidade fixa em CPS quando Humanize está desligado (ex: 13.5).</summary>
     [JsonPropertyName("cpsBase")]
-    public int CpsBase { get; set; }
+    public double CpsBase { get; set; }
 
     /// <summary>Liga/desliga o modo de variação de velocidade.</summary>
     [JsonPropertyName("humanize")]
