@@ -71,7 +71,7 @@ public sealed class MacroEngine : IDisposable
     private const int LoopStartDebounceMs = 80;
 
     // FIX-4: tempo máximo de espera pela thread anterior antes de desistir.
-    private const int LoopJoinTimeoutMs = 50;
+    private const int LoopJoinTimeoutMs = 80;
 
     // Limites de CPS — hardcoded conforme especificação
     private const double CpsMin = 1.0;
@@ -120,6 +120,13 @@ public sealed class MacroEngine : IDisposable
     // FIX-2: timestamp de quando StartMacro foi chamado, usado pelo debounce de InputUp.
     // Protegido por _sync — escrito apenas em StartMacro, lido apenas em HandleInputUp.
     private DateTimeOffset _loopRequestedAt;
+
+    // FIX-6: sinaliza que o loop foi iniciado por HandleInputDown (double-click hold) e
+    // deve parar no próximo InputUp, independente do debounce. Sem este flag, o Up do
+    // segundo clique cai dentro da janela de 80 ms e é descartado pelo debounce do FIX-2,
+    // fazendo o loop rodar indefinidamente até o próximo clique válido.
+    // Protegido por _sync.
+    private bool _stopOnNextUp;
 
     // ── Random por instância: sem contenção com Random.Shared ────────────────
     private readonly Random _rng = new();
@@ -298,7 +305,10 @@ public sealed class MacroEngine : IDisposable
             if (_state == MacroState.WaitingSecondClick && _firstClickReleasedAt.HasValue)
             {
                 if (IsWithinDoubleClickWindow())
-                    shouldStart = true;
+                {
+                    shouldStart    = true;
+                    _stopOnNextUp  = true;  // FIX-6: o Up que encerra o hold já está a caminho
+                }
                 else
                 {
                     // Fora da janela: trata este clique como primeiro de um novo ciclo
@@ -326,15 +336,26 @@ public sealed class MacroEngine : IDisposable
 
             if (_state == MacroState.Running)
             {
+                // FIX-6: loop iniciado por double-click hold — o Up que chega agora
+                // é o soltar do segundo clique, que é exatamente o sinal de parada.
+                // Deve parar imediatamente, sem checar o debounce.
+                if (_stopOnNextUp)
+                {
+                    _stopOnNextUp = false;
+                    shouldStop    = true;
+                }
                 // FIX-2: debounce — ignora InputUp que chegue dentro de LoopStartDebounceMs
                 // após o StartMacro. Isso evita que o InputUp do segundo clique de um
                 // double-click rápido cancele o loop antes da primeira iteração ser executada,
                 // que era o principal responsável pelo sintoma "bipa mas não clica".
-                bool withinDebounce =
-                    (DateTimeOffset.UtcNow - _loopRequestedAt).TotalMilliseconds < LoopStartDebounceMs;
+                else
+                {
+                    bool withinDebounce =
+                        (DateTimeOffset.UtcNow - _loopRequestedAt).TotalMilliseconds < LoopStartDebounceMs;
 
-                if (!withinDebounce)
-                    shouldStop = true;
+                    if (!withinDebounce)
+                        shouldStop = true;
+                }
             }
         }
 
@@ -425,7 +446,7 @@ public sealed class MacroEngine : IDisposable
                 // Sleep libera CPU para outros processos durante a maior parte da espera.
                 // O spin-wait fino cobre o resíduo com precisão de ~0.5 ms.
                 // Com timeBeginPeriod(1) ativo, Sleep(n) dorme ~n ms (não ~15 ms).
-                if (sleepMs >= 2)
+                if (sleepMs >= 5)
                     Thread.Sleep(sleepMs - 1);
 
                 // Spin-wait final: preciso ao tick, sem overhead de kernel
@@ -531,6 +552,7 @@ public sealed class MacroEngine : IDisposable
         {
             _state                = MacroState.Idle;
             _firstClickReleasedAt = null;
+            _stopOnNextUp         = false;  // FIX-6: reseta flag para não vazar ao próximo ciclo
         }
         // Não faz Join aqui: o loop para sozinho na próxima verificação de _loopCancelled.
         // Isso evita deadlock se StopLoop for chamado da UI thread enquanto o loop

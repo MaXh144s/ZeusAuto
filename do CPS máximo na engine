@@ -1,0 +1,25 @@
+* [33m10a9e78[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature-engine-v2[m[33m, [m[1;31morigin/feature-engine-v2[m[33m)[m Adição de customização de janela overlay
+* [33m1d14946[m Correção de bugs do CPS máximo na engine
+* [33md6b6694[m Correção e continuação dos atalhos gerais
+* [33m90c25d9[m Testes temporários
+* [33m5831a8e[m Ajuste de funções
+* [33mb6b18e7[m Repaginação Windown CPS
+* [33m9dec5c6[m Implementa novo motor V2
+* [33m1505d50[m[33m ([m[1;32mfeature-novo-recurso[m[33m)[m Adição valores readme
+*   [33m0522221[m[33m ([m[1;31morigin/feature-novo-recurso[m[33m)[m Merge branch 'main' into feature-novo-recurso
+[32m|[m[33m\[m  
+[32m|[m * [33m5f30887[m Fix formatting issues in README.md
+[32m|[m * [33mdfdddbd[m Create README.md for ZeusAuto project
+* [33m|[m [33m37dcc7a[m Correções em Janela de CPS e novo Designer (Cálculo mais preciso)
+* [33m|[m [33mee547fd[m implementação de janela de visualização CPS
+* [33m|[m [33m3c7ab75[m Resolução dos problemas de interface
+* [33m|[m [33m3dd7409[m Corrige cliques no Minecraft Bedrock
+* [33m|[m [33m787b396[m[33m ([m[1;32mfeature/macro-engine[m[33m)[m Resolução do bug envio instântaneo do evento Down e Up do mouse
+* [33m|[m [33mc21e160[m Normalização do padrão de Hz
+* [33m|[m [33m20d7269[m Correção bugs sobreposição de macros e Bip
+* [33m|[m [33maa98898[m Corrige engine de macros
+* [33m|[m [33mf9382bf[m Teste de correção
+* [33m|[m [33m7c7409f[m Increase README
+[33m|[m[33m/[m  
+* [33m1cd7572[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/feature/macro-engine[m[33m, [m[1;32mmain[m[33m)[m Remove build files and configure gitignore
+* [33m3ab395f[m Initial commit for ZeusAuto
