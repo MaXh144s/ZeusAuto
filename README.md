@@ -86,10 +86,10 @@ ZeusAuto/
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                     Interface HTML/JS                     │
+│                     Interface HTML/JS                    │
 │                                                          │
 │  state.macros[key] = { interval, cpsBase, humanize,      │
-│                         cpsMin, cpsMax, shortcuts, ... }  │
+│                         cpsMin, cpsMax, shortcuts, ... } │
 │                                                          │
 │  saveMacroKey()                                          │
 │      └─► ZeusNativeBridge.setActiveMacro(key)            │
@@ -99,11 +99,11 @@ ZeusAuto/
                          │  { type: "profile:update", profile: {...} }
                          ▼
 ┌──────────────────────────────────────────────────────────┐
-│                    MainForm.cs (C#)                       │
+│                    MainForm.cs (C#)                      │
 │                                                          │
 │  OnWebMessageReceived                                    │
 │      └─► Deserializa NativeBridgeMessage                 │
-│      └─► ToMacroConfig(profile)  ← conversão CPS → ms   │
+│      └─► ToMacroConfig(profile)  ← conversão CPS → ms    │
 │      └─► _engine.LoadConfig(config)                      │
 │      └─► _engine.EnableMonitoring()                      │
 │      └─► PostNativeStatus(mensagem) → ExecuteScriptAsync │
@@ -111,7 +111,7 @@ ZeusAuto/
                          │
                          ▼
 ┌──────────────────────────────────────────────────────────┐
-│                   MacroEngine.cs                          │
+│                   MacroEngine.cs                         │
 │                                                          │
 │  InputListener (hook Win32)                              │
 │      MouseDown → HandleInputDown → state machine         │
